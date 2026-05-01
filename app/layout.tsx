@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Geoffrey — Retouche photo Airbnb pro en 48h",
+  title: "REMPLISSAGE MAGNETIC™ — +15 à 20 points de taux d'occupation en 72h",
   description:
-    "Vos photos Airbnb retouchées par un photographe pro spécialisé location courte durée. Livré en 48h. À partir de 7€/photo.",
+    "Protocole visuel haute conversion réservé aux exploitants de meublés touristiques. Livré sous 72h par Geoffrey, photographe spécialisé courte durée. À partir de 7€/photo.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
