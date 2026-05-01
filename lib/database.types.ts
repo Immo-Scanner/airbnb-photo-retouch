@@ -61,8 +61,8 @@ export type PhotoUpdate = Partial<PhotoInsert>;
 export interface Database {
   public: {
     Tables: {
-      orders: { Row: OrderRow; Insert: OrderInsert; Update: OrderUpdate; Relationships: [] };
-      photos: { Row: PhotoRow; Insert: PhotoInsert; Update: PhotoUpdate; Relationships: [] };
+      orders: { Row: OrderRow; Insert: OrderInsert; Update: OrderUpdate; Relationships: never[] };
+      photos: { Row: PhotoRow; Insert: PhotoInsert; Update: PhotoUpdate; Relationships: never[] };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
