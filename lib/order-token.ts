@@ -31,9 +31,13 @@ function b64urlEncode(buf: ArrayBuffer | Uint8Array): string {
   return Buffer.from(bytes).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function b64urlDecode(s: string): Uint8Array {
+function b64urlDecode(s: string): ArrayBuffer {
   const padded = s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (s.length % 4)) % 4);
-  return new Uint8Array(Buffer.from(padded, "base64"));
+  const buf = Buffer.from(padded, "base64");
+  // Copy to a fresh ArrayBuffer (avoids SharedArrayBuffer-vs-ArrayBuffer type mismatches in DOM lib).
+  const out = new ArrayBuffer(buf.length);
+  new Uint8Array(out).set(buf);
+  return out;
 }
 
 export async function signOrderToken(orderId: string): Promise<string> {
