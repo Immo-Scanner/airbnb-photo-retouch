@@ -18,12 +18,12 @@ export default async function AdminPage() {
   if (!user || !isAdminEmail(user.email)) redirect("/");
 
   const admin = adminSupabase();
-  const ordersRes = await admin
+  const ordersRes = (await admin
     .from("orders")
     .select("id, user_id, tier, photos_quota, status, paid_at, scheduled_delivery_at, delivered_at")
     .order("created_at", { ascending: false })
-    .limit(100);
-  const orders = (ordersRes.data ?? []) as AdminOrder[];
+    .limit(100)) as { data: AdminOrder[] | null };
+  const orders = ordersRes.data ?? [];
 
   const { count: photoCount } = await admin.from("photos").select("id", { count: "exact", head: true });
 
