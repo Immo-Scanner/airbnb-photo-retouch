@@ -40,8 +40,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     zip.file(name, buf);
   }
 
-  const out = await zip.generateAsync({ type: "uint8array" });
-  return new NextResponse(out, {
+  const out = await zip.generateAsync({ type: "nodebuffer" });
+  return new NextResponse(new Uint8Array(out), {
     status: 200,
     headers: {
       "Content-Type": "application/zip",
