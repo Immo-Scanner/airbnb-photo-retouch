@@ -280,7 +280,7 @@ export default function LandingPage() {
         </div>
         <div className="mt-12 text-center">
           <Link
-            href="/login?tier=L"
+            href="/api/checkout?tier=L"
             className="inline-block bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-lg font-bold text-lg shadow-lg shadow-orange-200 transition"
           >
             JE RÉSERVE MES CRÉNEAUX REMPLISSAGE MAGNETIC™
@@ -320,7 +320,7 @@ export default function LandingPage() {
         </div>
         <div className="mt-12 text-center">
           <Link
-            href="/login?tier=L"
+            href="/api/checkout?tier=L"
             className="inline-block bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 rounded-lg font-bold text-lg shadow-lg shadow-orange-200 transition"
           >
             JE RÉSERVE MES CRÉNEAUX REMPLISSAGE MAGNETIC™
@@ -329,8 +329,7 @@ export default function LandingPage() {
       </Block>
 
       <footer className="py-10 text-center text-sm text-slate-500 border-t border-slate-200">
-        © {new Date().getFullYear()} — REMPLISSAGE MAGNETIC™ ·{" "}
-        <Link href="/login" className="hover:underline">J'ai déjà un compte</Link>
+        © {new Date().getFullYear()} — REMPLISSAGE MAGNETIC™
       </footer>
     </main>
   );
@@ -421,7 +420,7 @@ function PricingCard({
         ))}
       </ul>
       <Link
-        href={`/login?tier=${tier}`}
+        href={`/api/checkout?tier=${tier}`}
         className={`mt-8 block text-center px-4 py-3 rounded-lg font-semibold transition ${
           highlight ? "bg-orange-500 hover:bg-orange-600 text-white" : "bg-white hover:bg-slate-100 text-slate-900"
         }`}

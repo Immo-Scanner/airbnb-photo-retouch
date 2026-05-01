@@ -2,24 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 interface FileState {
   file: File;
   status: "queued" | "uploading" | "done" | "error";
-  progress: number;
   error?: string;
 }
 
-export function UploadClient({
-  orderId,
-  maxPhotos,
-  userId,
-}: {
-  orderId: string;
-  maxPhotos: number;
-  userId: string;
-}) {
+interface SignedUrl {
+  path: string;
+  signedUrl: string;
+  filename: string;
+}
+
+export function UploadClient({ orderId, maxPhotos }: { orderId: string; maxPhotos: number }) {
   const router = useRouter();
   const [files, setFiles] = useState<FileState[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -30,46 +26,56 @@ export function UploadClient({
     const newOnes = Array.from(picked)
       .filter((f) => f.type.startsWith("image/"))
       .slice(0, maxPhotos - files.length)
-      .map<FileState>((f) => ({ file: f, status: "queued", progress: 0 }));
+      .map<FileState>((f) => ({ file: f, status: "queued" }));
     setFiles((prev) => [...prev, ...newOnes]);
   }
 
   async function uploadAll() {
     setSubmitting(true);
     setError(null);
-    const supabase = createBrowserSupabase();
 
     try {
-      // 1. Upload each photo to Supabase Storage (originals bucket)
+      // 1. Ask the server for a signed upload URL per file.
+      const signRes = await fetch(`/api/upload/sign-urls`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId,
+          files: files.map((f) => ({ filename: f.file.name, sizeBytes: f.file.size })),
+        }),
+      });
+      if (!signRes.ok) throw new Error(`sign-urls failed: ${await signRes.text()}`);
+      const { urls } = (await signRes.json()) as { urls: SignedUrl[] };
+
+      // 2. PUT each file to its signed URL.
       const uploadedFiles: { path: string; filename: string; sizeBytes: number }[] = [];
-      for (let i = 0; i < files.length; i++) {
+      for (let i = 0; i < urls.length; i++) {
         setFiles((prev) =>
-          prev.map((f, idx) => (idx === i ? { ...f, status: "uploading", progress: 50 } : f))
+          prev.map((f, idx) => (idx === i ? { ...f, status: "uploading" } : f))
         );
         const f = files[i].file;
-        const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const path = `${userId}/${orderId}/${Date.now()}_${i}_${safeName}`;
-        const { error: upErr } = await supabase.storage.from("originals").upload(path, f, {
-          contentType: f.type,
-          upsert: false,
+        const res = await fetch(urls[i].signedUrl, {
+          method: "PUT",
+          headers: { "Content-Type": f.type || "application/octet-stream" },
+          body: f,
         });
-        if (upErr) throw upErr;
-        uploadedFiles.push({ path, filename: f.name, sizeBytes: f.size });
+        if (!res.ok) throw new Error(`upload failed for ${f.name}: ${res.status}`);
+        uploadedFiles.push({ path: urls[i].path, filename: f.name, sizeBytes: f.size });
         setFiles((prev) =>
-          prev.map((file, idx) => (idx === i ? { ...file, status: "done", progress: 100 } : file))
+          prev.map((file, idx) => (idx === i ? { ...file, status: "done" } : file))
         );
       }
 
-      // 2. Tell the server we're done — it will register photos in DB,
-      // push them to AutoEnhance, schedule the human-like delivery time.
-      const res = await fetch(`/api/upload-complete`, {
+      // 3. Tell the server we're done. It registers photos, pushes them to
+      // AutoEnhance, and schedules the human-like delivery time.
+      const completeRes = await fetch(`/api/upload-complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderId, files: uploadedFiles }),
       });
-      if (!res.ok) throw new Error(`upload-complete failed: ${await res.text()}`);
+      if (!completeRes.ok) throw new Error(`upload-complete failed: ${await completeRes.text()}`);
 
-      router.push(`/dashboard/order/${orderId}`);
+      router.push(`/order/${orderId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur d'upload");
       setSubmitting(false);
@@ -78,9 +84,7 @@ export function UploadClient({
 
   return (
     <div>
-      <label
-        className="block border-2 border-dashed border-slate-300 hover:border-orange-400 hover:bg-orange-50/40 rounded-2xl p-12 text-center cursor-pointer transition"
-      >
+      <label className="block border-2 border-dashed border-slate-300 hover:border-orange-400 hover:bg-orange-50/40 rounded-2xl p-12 text-center cursor-pointer transition">
         <input
           type="file"
           multiple

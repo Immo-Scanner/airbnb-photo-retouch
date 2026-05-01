@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
 import { stripe } from "@/lib/stripe";
 import { TIERS, tierFromString } from "@/lib/tiers";
 
+/**
+ * Public checkout — no auth required. Stripe collects the email at checkout
+ * time. The Stripe webhook + /api/post-checkout pair create the order and
+ * issue a signed order token that authenticates further requests.
+ */
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const tier = tierFromString(url.searchParams.get("tier") ?? "");
   if (!tier) return NextResponse.json({ error: "invalid tier" }, { status: 400 });
-
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.redirect(new URL(`/login?tier=${tier}`, url));
 
   const priceId = process.env[TIERS[tier].priceEnv];
   if (!priceId) return NextResponse.json({ error: `${TIERS[tier].priceEnv} not set` }, { status: 500 });
@@ -19,11 +19,11 @@ export async function GET(req: Request) {
   const session = await stripe().checkout.sessions.create({
     mode: "payment",
     payment_method_types: ["card"],
-    customer_email: user.email,
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl}/dashboard?paid=1`,
+    success_url: `${appUrl}/api/post-checkout?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/?canceled=1`,
-    metadata: { user_id: user.id, tier },
+    metadata: { tier },
+    // Stripe will collect the email if customer_email is unset (default UX).
   });
 
   return NextResponse.redirect(session.url!, { status: 303 });

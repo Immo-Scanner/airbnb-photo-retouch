@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 type AdminOrder = Pick<
   OrderRow,
-  "id" | "user_id" | "tier" | "photos_quota" | "status" | "paid_at" | "scheduled_delivery_at" | "delivered_at"
+  "id" | "email" | "tier" | "photos_quota" | "status" | "paid_at" | "scheduled_delivery_at" | "delivered_at"
 >;
 
 export default async function AdminPage() {
@@ -20,7 +20,7 @@ export default async function AdminPage() {
   const admin = adminSupabase();
   const ordersRes = (await admin
     .from("orders")
-    .select("id, user_id, tier, photos_quota, status, paid_at, scheduled_delivery_at, delivered_at")
+    .select("id, email, tier, photos_quota, status, paid_at, scheduled_delivery_at, delivered_at")
     .order("created_at", { ascending: false })
     .limit(100)) as { data: AdminOrder[] | null };
   const orders = ordersRes.data ?? [];
@@ -39,6 +39,7 @@ export default async function AdminPage() {
           <thead className="bg-slate-50 text-left">
             <tr>
               <th className="px-4 py-2">Order ID</th>
+              <th className="px-4 py-2">Email</th>
               <th className="px-4 py-2">Tier</th>
               <th className="px-4 py-2">Quota</th>
               <th className="px-4 py-2">Status</th>
@@ -50,11 +51,8 @@ export default async function AdminPage() {
           <tbody>
             {orders.map((o) => (
               <tr key={o.id} className="border-t border-slate-100">
-                <td className="px-4 py-2 font-mono text-xs">
-                  <Link href={`/dashboard/order/${o.id}`} className="hover:underline">
-                    {o.id.slice(0, 8)}…
-                  </Link>
-                </td>
+                <td className="px-4 py-2 font-mono text-xs">{o.id.slice(0, 8)}…</td>
+                <td className="px-4 py-2 text-xs">{o.email ?? "—"}</td>
                 <td className="px-4 py-2">{o.tier}</td>
                 <td className="px-4 py-2">{o.photos_quota}</td>
                 <td className="px-4 py-2">{o.status}</td>

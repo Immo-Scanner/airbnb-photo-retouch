@@ -25,7 +25,7 @@ export async function GET(req: Request) {
 
   const { data: due, error } = await admin
     .from("orders")
-    .select("id, user_id")
+    .select("id, email")
     .eq("status", "READY")
     .lte("scheduled_delivery_at", nowIso)
     .limit(50);
@@ -35,26 +35,30 @@ export async function GET(req: Request) {
   const delivered: string[] = [];
 
   for (const order of due ?? []) {
+    const orderId = order.id as string;
+    const email = order.email as string | null;
+
     const { error: updErr } = await admin
       .from("orders")
       .update({ status: "DELIVERED", delivered_at: new Date().toISOString() })
-      .eq("id", order.id as string)
+      .eq("id", orderId)
       .eq("status", "READY");
     if (updErr) {
-      console.error("[cron-deliver] flip failed", order.id, updErr);
+      console.error("[cron-deliver] flip failed", orderId, updErr);
       continue;
     }
 
-    const { data: userRes } = await admin.auth.admin.getUserById(order.user_id as string);
-    const email = userRes?.user?.email;
     if (email) {
+      const { signOrderToken } = await import("@/lib/order-token");
+      const tok = await signOrderToken(orderId);
+      const link = `${appUrl}/order/${orderId}?t=${encodeURIComponent(tok)}`;
       await sendEmail({
         to: email,
         subject: "Vos photos retouchées sont prêtes — Geoffrey",
-        html: deliveryEmailHtml(order.id as string, appUrl),
+        html: deliveryEmailHtml(link),
       });
     }
-    delivered.push(order.id as string);
+    delivered.push(orderId);
   }
 
   return NextResponse.json({ delivered });

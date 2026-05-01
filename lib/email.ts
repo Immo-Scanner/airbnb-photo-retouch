@@ -28,7 +28,7 @@ export async function sendEmail(opts: {
   }
 }
 
-export function deliveryEmailHtml(orderId: string, appUrl: string): string {
+export function deliveryEmailHtml(link: string): string {
   return `
     <div style="font-family: ui-sans-serif, system-ui; max-width: 560px; margin: 0 auto;">
       <h2>Vos photos retouchées sont prêtes 📸</h2>
@@ -36,7 +36,7 @@ export function deliveryEmailHtml(orderId: string, appUrl: string): string {
       <p>J'ai terminé la retouche de vos photos. Vous pouvez les télécharger
       dès maintenant depuis votre espace :</p>
       <p>
-        <a href="${appUrl}/dashboard/order/${orderId}"
+        <a href="${link}"
            style="background: #f97316; color: white; padding: 12px 20px; border-radius: 8px; text-decoration: none; display: inline-block;">
           Télécharger mes photos
         </a>
