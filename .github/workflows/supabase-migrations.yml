@@ -20,6 +20,19 @@ jobs:
         with:
           version: latest
 
+      - name: Debug — secret lengths and project ref prefix
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          echo "PROJECT_REF length: ${#SUPABASE_PROJECT_REF}"
+          echo "PROJECT_REF first 4 chars: ${SUPABASE_PROJECT_REF:0:4}…"
+          echo "DB_PASSWORD length: ${#SUPABASE_DB_PASSWORD}"
+          echo "DB_PASSWORD has trailing whitespace?: $([ "${SUPABASE_DB_PASSWORD: -1}" = " " ] && echo YES || echo no)"
+          echo "ACCESS_TOKEN length: ${#SUPABASE_ACCESS_TOKEN}"
+          echo "ACCESS_TOKEN starts with: ${SUPABASE_ACCESS_TOKEN:0:4}…"
+
       - name: Link project
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
