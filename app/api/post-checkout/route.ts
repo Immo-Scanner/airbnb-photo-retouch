@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { setOrderCookie } from "@/lib/order-token";
 import { tierFromString } from "@/lib/tiers";
-import { createOrderIfMissing } from "@/app/api/stripe/webhook/route";
+import { createOrderIfMissing } from "@/lib/orders";
 
 export const runtime = "nodejs";
 
