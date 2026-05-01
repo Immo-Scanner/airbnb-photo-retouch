@@ -1,0 +1,7 @@
+# Supabase project config (used by `supabase` CLI).
+# project_id is overridden by `supabase link --project-ref` in CI; the value
+# below only matters for purely-local dev with `supabase start`.
+project_id = "airbnb-photo-retouch"
+
+[db]
+major_version = 15
