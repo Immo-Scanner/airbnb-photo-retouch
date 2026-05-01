@@ -11,7 +11,8 @@ export type PhotoStatus = "UPLOADED" | "PROCESSING" | "ENHANCED" | "FAILED";
 
 export interface OrderRow {
   id: string;
-  user_id: string;
+  user_id: string | null;
+  email: string | null;
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
   tier: OrderTier;
