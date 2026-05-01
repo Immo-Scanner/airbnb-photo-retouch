@@ -64,13 +64,13 @@ export interface Database {
       orders: { Row: OrderRow; Insert: OrderInsert; Update: OrderUpdate; Relationships: [] };
       photos: { Row: PhotoRow; Insert: PhotoInsert; Update: PhotoUpdate; Relationships: [] };
     };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Views: { [_ in never]: never };
+    Functions: { [_ in never]: never };
     Enums: {
       order_tier: OrderTier;
       order_status: OrderStatus;
       photo_status: PhotoStatus;
     };
-    CompositeTypes: Record<string, never>;
+    CompositeTypes: { [_ in never]: never };
   };
 }
