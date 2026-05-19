@@ -47,7 +47,12 @@ export async function registerImage(imageName: string): Promise<RegisterImageRes
   // slightly across docs vs production. Pick the actual identifier and upload
   // URL by trying a few known aliases.
   const imageId = (payload.image_id ?? payload.id) as string | undefined;
-  const uploadUrl = (payload.upload_url ?? payload.s3_upload_url ?? payload.url) as string | undefined;
+  // The production API returns the field as `s3PutObjectUrl` (camelCase, S3
+  // pre-signed PUT URL). The docs name `upload_url` doesn't appear in the
+  // actual payload — keep it as a defensive fallback in case they unify.
+  const uploadUrl = (payload.s3PutObjectUrl ?? payload.upload_url ?? payload.s3_upload_url ?? payload.url) as
+    | string
+    | undefined;
   const orderId = (payload.order_id ?? "") as string;
   if (!imageId || !uploadUrl) {
     const keys = Object.keys(payload).join(", ");
