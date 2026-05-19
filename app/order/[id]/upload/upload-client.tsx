@@ -30,14 +30,21 @@ export function UploadClient({ orderId, maxPhotos }: { orderId: string; maxPhoto
     () => (files.length === 0 ? 0 : Math.round((uploadedCount / files.length) * 100)),
     [uploadedCount, files.length]
   );
+  const remainingSlots = Math.max(0, maxPhotos - files.length);
+  const isFull = remainingSlots === 0;
+  const [dropped, setDropped] = useState(0);
 
   function onPick(picked: FileList | null) {
     if (!picked) return;
-    const newOnes = Array.from(picked)
-      .filter((f) => f.type.startsWith("image/"))
-      .slice(0, maxPhotos - files.length)
-      .map<FileState>((f) => ({ file: f, status: "queued" }));
-    setFiles((prev) => [...prev, ...newOnes]);
+    setDropped(0);
+    const images = Array.from(picked).filter((f) => f.type.startsWith("image/"));
+    const accepted = images.slice(0, remainingSlots);
+    const droppedCount = images.length - accepted.length;
+    setFiles((prev) => [
+      ...prev,
+      ...accepted.map<FileState>((f) => ({ file: f, status: "queued" })),
+    ]);
+    if (droppedCount > 0) setDropped(droppedCount);
   }
 
   function removeFile(idx: number) {
@@ -94,28 +101,52 @@ export function UploadClient({ orderId, maxPhotos }: { orderId: string; maxPhoto
     }
   }
 
+  const disabled = isSubmitting || isFull;
+  const dropzoneCls = disabled
+    ? "border-slate-200 bg-slate-50 cursor-not-allowed"
+    : "border-slate-300 hover:border-brand hover:bg-brand-soft/40 cursor-pointer";
+
   return (
     <div className="relative">
-      <label
-        className={`block border-2 border-dashed rounded-2xl p-12 text-center transition ${
-          isSubmitting
-            ? "border-slate-200 bg-slate-50 cursor-not-allowed"
-            : "border-slate-300 hover:border-brand hover:bg-brand-soft/40 cursor-pointer"
-        }`}
-      >
+      <label className={`block border-2 border-dashed rounded-2xl p-12 text-center transition ${dropzoneCls}`}>
         <input
           type="file"
           multiple
           accept="image/*"
           className="hidden"
-          onChange={(e) => onPick(e.target.files)}
-          disabled={isSubmitting}
+          onChange={(e) => {
+            onPick(e.target.files);
+            e.currentTarget.value = ""; // allow re-picking the same file after removal
+          }}
+          disabled={disabled}
         />
-        <p className="text-ink font-medium text-lg">
-          Cliquez ou glissez-déposez vos photos ({files.length}/{maxPhotos})
-        </p>
-        <p className="text-sm text-ink-muted mt-2">JPG, PNG ou HEIC — jusqu'à {maxPhotos} photos</p>
+        {isFull ? (
+          <>
+            <p className="text-ink font-medium text-lg">
+              ✓ Maximum atteint — {maxPhotos}/{maxPhotos} photo{maxPhotos > 1 ? "s" : ""}
+            </p>
+            <p className="text-sm text-ink-muted mt-2">
+              Retirez-en une si vous voulez en remplacer une.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-ink font-medium text-lg">
+              Cliquez ou glissez-déposez vos photos ({files.length}/{maxPhotos})
+            </p>
+            <p className="text-sm text-ink-muted mt-2">
+              JPG, PNG ou HEIC — encore {remainingSlots} photo{remainingSlots > 1 ? "s" : ""} possible{remainingSlots > 1 ? "s" : ""}
+            </p>
+          </>
+        )}
       </label>
+
+      {dropped > 0 && (
+        <p className="mt-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-2.5">
+          {dropped} photo{dropped > 1 ? "s ont" : " a"} été ignorée{dropped > 1 ? "s" : ""} (limite de
+          {" "}{maxPhotos} atteinte avec votre formule).
+        </p>
+      )}
 
       {files.length > 0 && (
         <ul className="mt-6 space-y-2">
