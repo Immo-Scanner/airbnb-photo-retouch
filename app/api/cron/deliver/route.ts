@@ -10,7 +10,7 @@ export const maxDuration = 60;
  * Cron — called every 15 minutes by Supabase pg_cron + pg_net.
  *
  * Picks up orders where:
- *   - status = 'READY' (all photos done by AutoEnhance)
+ *   - status = 'READY' (all photos enhanced)
  *   - scheduled_delivery_at <= now() (the fake-human delay has elapsed)
  * → flips them to DELIVERED and sends the "Geoffrey done" email.
  *

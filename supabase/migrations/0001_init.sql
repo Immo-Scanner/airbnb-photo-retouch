@@ -65,9 +65,6 @@ create table if not exists public.photos (
   original_filename        text not null,
   original_size_bytes      bigint not null,
 
-  autoenhance_image_id     text unique,
-  autoenhance_order_id     text,
-
   enhanced_path            text,
   status                   photo_status not null default 'UPLOADED',
 
@@ -79,8 +76,6 @@ create table if not exists public.photos (
 
 create index if not exists photos_order_id_idx on public.photos(order_id);
 create index if not exists photos_status_idx on public.photos(status);
-create unique index if not exists photos_autoenhance_image_id_idx on public.photos(autoenhance_image_id)
-  where autoenhance_image_id is not null;
 
 -- ============================================================
 -- updated_at trigger

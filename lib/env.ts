@@ -14,12 +14,7 @@ const schema = z.object({
   STRIPE_PRICE_M: z.string().min(1),
   STRIPE_PRICE_L: z.string().min(1),
 
-  AUTOENHANCE_API_KEY: z.string().min(1),
-  AUTOENHANCE_DEV_MODE: z
-    .string()
-    .optional()
-    .transform((v) => v === "true"),
-  AUTOENHANCE_WEBHOOK_TOKEN: z.string().min(1),
+  OPENAI_API_KEY: z.string().min(1),
 
   CRON_SECRET: z.string().min(1),
 

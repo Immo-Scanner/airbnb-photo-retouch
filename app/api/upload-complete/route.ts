@@ -2,11 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { adminSupabase } from "@/lib/supabase/admin";
 import { authorizedOrderId } from "@/lib/order-token";
-import { createOrder as createAutoEnhanceOrder, registerImage, uploadImageBinary } from "@/lib/autoenhance";
 import { scheduleDelivery } from "@/lib/business-hours";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
 
 const Body = z.object({
   orderId: z.string().uuid(),
@@ -22,6 +20,15 @@ const Body = z.object({
     .max(50),
 });
 
+/**
+ * Called by the upload client once every file has hit Supabase Storage.
+ *
+ * We just record the photo rows as UPLOADED and move the order to PROCESSING;
+ * the heavy lifting (OpenAI image edits) is then drained one photo at a time
+ * by the /api/photos/process cron tick. This keeps this handler fast even
+ * for a 20-photo order — otherwise we'd blow past Vercel's 60s function
+ * timeout the moment we tried to do the edits inline.
+ */
 export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
@@ -33,40 +40,15 @@ export async function POST(req: Request) {
   const admin = adminSupabase();
   const orderRes = (await admin
     .from("orders")
-    .select("id, photos_quota, status, email, customer_name, autoenhance_order_id")
+    .select("id, photos_quota, status")
     .eq("id", orderId)
-    .single()) as {
-    data: {
-      id: string;
-      photos_quota: number;
-      status: string;
-      email: string | null;
-      customer_name: string | null;
-      autoenhance_order_id: string | null;
-    } | null;
-  };
+    .single()) as { data: { id: string; photos_quota: number; status: string } | null };
   const order = orderRes.data;
   if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (order.status !== "AWAITING_UPLOAD")
     return NextResponse.json({ error: "order already processed" }, { status: 409 });
   if (files.length > order.photos_quota)
     return NextResponse.json({ error: "quota exceeded" }, { status: 400 });
-
-  // Ensure a single AutoEnhance "order" exists for this customer order, titled
-  // with their name + email so it shows up legibly in the AE dashboard.
-  let autoenhanceOrderId = order.autoenhance_order_id;
-  if (!autoenhanceOrderId) {
-    const title = order.customer_name
-      ? `${order.customer_name} <${order.email ?? "?"}>`
-      : (order.email ?? `Commande ${orderId.slice(0, 8)}`);
-    try {
-      const ae = await createAutoEnhanceOrder(title);
-      autoenhanceOrderId = ae.order_id;
-      await admin.from("orders").update({ autoenhance_order_id: autoenhanceOrderId }).eq("id", orderId);
-    } catch (e) {
-      console.error("[upload-complete] AE order create failed (continuing without grouping)", e);
-    }
-  }
 
   const photoRows = files.map((f) => ({
     order_id: orderId,
@@ -75,8 +57,8 @@ export async function POST(req: Request) {
     original_size_bytes: f.sizeBytes,
     status: "UPLOADED" as const,
   }));
-  const insertedRes = (await admin.from("photos").insert(photoRows).select("id, original_path")) as {
-    data: { id: string; original_path: string }[] | null;
+  const insertedRes = (await admin.from("photos").insert(photoRows).select("id")) as {
+    data: { id: string }[] | null;
     error: { message: string } | null;
   };
   if (insertedRes.error || !insertedRes.data) {
@@ -84,40 +66,6 @@ export async function POST(req: Request) {
       { error: insertedRes.error?.message ?? "insert failed" },
       { status: 500 }
     );
-  }
-
-  for (const photo of insertedRes.data) {
-    try {
-      const { data: signed } = await admin.storage
-        .from("originals")
-        .createSignedUrl(photo.original_path, 60);
-      if (!signed?.signedUrl) throw new Error("could not sign original URL");
-
-      const fileRes = await fetch(signed.signedUrl);
-      if (!fileRes.ok) throw new Error(`download original failed: ${fileRes.status}`);
-      const bin = await fileRes.arrayBuffer();
-
-      const reg = await registerImage(
-        `order_${orderId}_photo_${photo.id}`,
-        autoenhanceOrderId ?? undefined
-      );
-      await uploadImageBinary(reg.upload_url, bin);
-
-      await admin
-        .from("photos")
-        .update({
-          autoenhance_image_id: reg.image_id,
-          autoenhance_order_id: reg.order_id,
-          status: "PROCESSING",
-        })
-        .eq("id", photo.id);
-    } catch (e) {
-      console.error("[upload-complete] photo failed", photo.id, e);
-      await admin
-        .from("photos")
-        .update({ status: "FAILED", error_message: (e as Error).message })
-        .eq("id", photo.id);
-    }
   }
 
   const now = new Date();

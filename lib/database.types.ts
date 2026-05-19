@@ -14,7 +14,6 @@ export interface OrderRow {
   user_id: string | null;
   email: string | null;
   customer_name: string | null;
-  autoenhance_order_id: string | null;
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
   tier: OrderTier;
@@ -44,8 +43,6 @@ export interface PhotoRow {
   original_path: string;
   original_filename: string;
   original_size_bytes: number;
-  autoenhance_image_id: string | null;
-  autoenhance_order_id: string | null;
   enhanced_path: string | null;
   status: PhotoStatus;
   error_message: string | null;
