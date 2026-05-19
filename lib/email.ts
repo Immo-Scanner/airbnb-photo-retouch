@@ -1,30 +1,41 @@
 /**
- * Resend wrapper. No-op if RESEND_API_KEY is not set (dev mode).
+ * SendGrid v3 wrapper. No-op if SENDGRID_API_KEY is not set (dev mode logs
+ * to console instead of sending).
+ *
+ * The sender address (EMAIL_FROM) must be verified in SendGrid — either via
+ * Single Sender Verification or by authenticating the immoscan.fr domain
+ * under Settings → Sender Authentication.
  */
 export async function sendEmail(opts: {
   to: string;
   subject: string;
   html: string;
 }) {
-  if (!process.env.RESEND_API_KEY) {
-    console.log("[email] RESEND_API_KEY not set — skipping send", opts.to, opts.subject);
+  if (!process.env.SENDGRID_API_KEY) {
+    console.log("[email] SENDGRID_API_KEY not set — skipping send", opts.to, opts.subject);
     return;
   }
-  const res = await fetch("https://api.resend.com/emails", {
+
+  const fromAddress = process.env.EMAIL_FROM ?? "contact@immoscan.fr";
+  const fromName = process.env.EMAIL_FROM_NAME ?? "Geoffrey · Immoscan";
+
+  const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      Authorization: `Bearer ${process.env.SENDGRID_API_KEY}`,
     },
     body: JSON.stringify({
-      from: process.env.EMAIL_FROM ?? "Geoffrey <onboarding@resend.dev>",
-      to: opts.to,
+      personalizations: [{ to: [{ email: opts.to }] }],
+      from: { email: fromAddress, name: fromName },
+      reply_to: { email: fromAddress, name: fromName },
       subject: opts.subject,
-      html: opts.html,
+      content: [{ type: "text/html", value: opts.html }],
     }),
   });
+
   if (!res.ok) {
-    console.error("[email] resend failed", res.status, await res.text());
+    console.error("[email] sendgrid failed", res.status, await res.text());
   }
 }
 
