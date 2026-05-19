@@ -1,8 +1,6 @@
 import Link from "next/link";
 
 // Landing page — long-form sales letter (Version 2 du brief).
-// Placeholders à remplacer par toi : [Prénom], [Nom], [Date], [Nom du site],
-// les 3 témoignages, et les 3 lignes "Ils parlent de nous".
 
 export default function LandingPage() {
   return (
@@ -27,8 +25,7 @@ export default function LandingPage() {
 
       {/* === FRUSTRATION === */}
       <Block>
-        <p className="text-sm text-slate-500">Paris, [Date]</p>
-        <p className="text-sm text-slate-500 mb-6">De : [Prénom + Nom]</p>
+        <p className="text-sm text-slate-500 mb-6">De : Julian MULLER</p>
 
         <P>
           Si vous êtes comme la majorité des investisseurs qui exploitent un ou plusieurs biens en location
@@ -151,15 +148,15 @@ export default function LandingPage() {
         <div className="grid md:grid-cols-3 gap-6 mt-10">
           <Testimonial
             quote="Bien à Bordeaux, 62% d'occupation depuis 6 mois malgré un pricing optimisé. 48h après remise en ligne avec les photos retouchées : 81%. Sur 12 mois projetés, c'est +6 400€ net pour 97€ investis."
-            author="[Témoignage #1]"
+            author="Marc D. — 1 bien · Bordeaux centre"
           />
           <Testimonial
             quote="J'exploite 4 biens en région PACA. J'ai testé sur le moins performant. Résultat : +14 points de remplissage en 3 semaines, RevPAR en hausse de 23%. J'ai immédiatement basculé les 3 autres."
-            author="[Témoignage #2]"
+            author="Sophie L. — 4 biens · PACA"
           />
           <Testimonial
             quote="J'avais payé un photographe immobilier 480€ il y a 8 mois. Je pensais que c'était optimisé. Après le passage de Geoffrey : +1 800€ de revenus le mois suivant. Le différentiel parle de lui-même."
-            author="[Témoignage #3]"
+            author="Thomas R. — 2 biens · Lyon"
           />
         </div>
       </Block>
@@ -168,7 +165,7 @@ export default function LandingPage() {
       <Block>
         <H2>Qui sommes-nous pour vous parler de tout ça ?</H2>
         <P>
-          Bonjour, je m'appelle <strong>[Prénom]</strong>, je suis le fondateur de <strong>[nom du site]</strong> et le
+          Bonjour, je m'appelle <strong>Julian</strong>, je suis le fondateur de <strong>Immoscan</strong> et le
           co-architecte du protocole REMPLISSAGE MAGNETIC™.
         </P>
         <P>
@@ -185,12 +182,6 @@ export default function LandingPage() {
           Depuis 8 ans, je partage ces analyses avec une communauté privée d'investisseurs sérieux : opérations
           off-market, lives de chasse immobilière, ateliers de structuration financière, retours d'expérience sans filtre.
         </P>
-        <H3>Ils parlent de nous</H3>
-        <ul className="space-y-2 text-slate-700">
-          <li>✅ [Média / podcast / interview #1]</li>
-          <li>✅ [Partenariat institutionnel ou réseau pro #2]</li>
-          <li>✅ [Volume de biens accompagnés / communauté #3]</li>
-        </ul>
       </Block>
 
       {/* === CTA + TARIFS === */}
@@ -247,7 +238,7 @@ export default function LandingPage() {
       <Block bg="slate">
         <H2 center>🎁 Bonus inclus — non disponibles ailleurs</H2>
         <div className="grid md:grid-cols-3 gap-6 mt-10">
-          <BonusCard n={1} title="Newsletter Privée [Nom Site]">
+          <BonusCard n={1} title="Newsletter Privée Immoscan">
             20 ans d'opérations immobilières condensés dans une newsletter sans filtre. Off-market, lives de chasse,
             ateliers de financement, débriefs d'investisseurs aguerris. Une ressource que la communauté paye
             habituellement à l'année.
@@ -291,7 +282,7 @@ export default function LandingPage() {
       {/* === PS === */}
       <Block bg="slate">
         <P>Cordialement,</P>
-        <P>[Prénom]</P>
+        <P>Julian</P>
         <div className="mt-10 border-l-4 border-orange-500 pl-6">
           <H3>PS</H3>
           <P>
