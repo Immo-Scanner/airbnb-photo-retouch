@@ -132,7 +132,7 @@ function ProcessingCard({
     : "Photos bien reçues ✓";
   const body = hasStartedWorking
     ? `${count} photo${count > 1 ? "s" : ""} en cours. Vous recevrez un email dès que c'est prêt.`
-    : `On a bien reçu vos ${count} photo${count > 1 ? "s" : ""}. Geoffrey les prendra en main demain matin.`;
+    : `On a bien reçu vos ${count} photo${count > 1 ? "s" : ""}. Geoffrey les prendra en main dès que possible.`;
 
   return (
     <div className="rounded-2xl bg-white border border-black/5 shadow-sm overflow-hidden">
