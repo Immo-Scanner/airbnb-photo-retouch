@@ -1,24 +1,23 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { adminSupabase } from "@/lib/supabase/admin";
-import { authorizedOrderId, setOrderCookie } from "@/lib/order-token";
+import { authorizedOrderId } from "@/lib/order-token";
 import type { OrderRow, PhotoRow } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
 
+// Note: when the user arrives with ?t={token}, the middleware redirects to
+// the clean URL while setting the order_session cookie. By the time this page
+// renders, only the cookie is present.
 export default async function OrderPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ t?: string }>;
 }) {
   const { id } = await params;
-  const { t } = await searchParams;
 
-  const ok = await authorizedOrderId({ expectedOrderId: id, queryToken: t ?? null });
+  const ok = await authorizedOrderId({ expectedOrderId: id, queryToken: null });
   if (!ok) notFound();
-  if (t) await setOrderCookie(id);
 
   const admin = adminSupabase();
   const orderRes = (await admin
