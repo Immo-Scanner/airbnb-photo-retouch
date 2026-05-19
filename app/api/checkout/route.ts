@@ -20,7 +20,7 @@ export async function GET(req: Request) {
     mode: "payment",
     payment_method_types: ["card"],
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${appUrl}/api/post-checkout?session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/?canceled=1`,
     metadata: { tier },
     // Stripe will collect the email if customer_email is unset (default UX).

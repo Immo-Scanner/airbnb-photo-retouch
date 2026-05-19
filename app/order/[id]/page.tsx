@@ -18,16 +18,27 @@ export default async function OrderPage({
 
   const ok = await authorizedOrderId({ expectedOrderId: id, queryToken: t ?? null });
   if (!ok) notFound();
-
-  // If the URL had a fresh ?t=… token, refresh the cookie so reload-without-link works.
   if (t) await setOrderCookie(id);
 
   const admin = adminSupabase();
   const orderRes = (await admin
     .from("orders")
-    .select("id, tier, photos_quota, status, email")
+    .select("id, tier, photos_quota, status, email, upload_completed_at, scheduled_delivery_at")
     .eq("id", id)
-    .single()) as { data: Pick<OrderRow, "id" | "tier" | "photos_quota" | "status" | "email"> | null };
+    .single()) as {
+    data:
+      | Pick<
+          OrderRow,
+          | "id"
+          | "tier"
+          | "photos_quota"
+          | "status"
+          | "email"
+          | "upload_completed_at"
+          | "scheduled_delivery_at"
+        >
+      | null;
+  };
   const order = orderRes.data;
   if (!order) notFound();
 
@@ -40,70 +51,158 @@ export default async function OrderPage({
   };
   const photos = photosRes.data ?? [];
 
-  const isAwaiting = order.status === "AWAITING_UPLOAD";
-  const isDelivered = order.status === "DELIVERED";
-
   return (
-    <div className="max-w-2xl mx-auto px-6 py-12">
-      <Link href="/" className="text-sm text-slate-500 hover:underline">
-        ← Retour
-      </Link>
-      <h1 className="text-3xl font-bold mt-3 mb-2">
-        Formule {order.tier} — {order.photos_quota} photos
-      </h1>
-      <p className="text-sm text-slate-500 mb-8">{order.email}</p>
+    <div className="min-h-screen bg-surface-alt">
+      <div className="max-w-2xl mx-auto px-6 py-12 md:py-16">
+        <Link href="/" className="text-sm text-ink-muted hover:underline">
+          ← Retour
+        </Link>
+        <h1 className="text-3xl md:text-4xl font-extrabold mt-3 tracking-tight">
+          Formule {order.tier} — {order.photos_quota} photos
+        </h1>
+        <p className="text-sm text-ink-muted mt-1 mb-10">{order.email}</p>
 
-      {isAwaiting ? (
-        <div className="rounded-xl bg-amber-50 border border-amber-200 p-5">
-          <p className="font-semibold text-amber-900">📤 Vos photos n'ont pas encore été envoyées</p>
-          <p className="text-sm text-amber-800 mt-1 mb-4">
-            Cliquez ci-dessous pour uploader vos photos. Vous pouvez le faire plus tard, mais le délai de 48h ouvrées
-            commencera à compter à ce moment-là.
-          </p>
-          <Link
-            href={`/order/${id}/upload`}
-            className="inline-block bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-lg font-semibold"
-          >
-            Uploader mes photos
-          </Link>
-        </div>
-      ) : isDelivered ? (
-        <>
-          <div className="rounded-xl bg-green-50 border border-green-200 p-5 mb-6">
-            <p className="font-semibold text-green-900">✓ Geoffrey a terminé vos retouches</p>
-            <p className="text-sm text-green-800 mt-1">Lien de téléchargement valide 30 jours.</p>
+        {order.status === "AWAITING_UPLOAD" && <AwaitingUploadCard id={id} />}
+        {(order.status === "PROCESSING" || order.status === "READY") && (
+          <ProcessingCard scheduledAt={order.scheduled_delivery_at} count={photos.length} />
+        )}
+        {order.status === "DELIVERED" && <DeliveredCard id={id} count={photos.length} />}
+
+        {photos.length > 0 && (
+          <div className="mt-12">
+            <h2 className="text-xs font-bold text-ink-muted uppercase tracking-widest mb-4">
+              Vos photos
+            </h2>
+            <ul className="space-y-1.5">
+              {photos.map((p) => (
+                <li
+                  key={p.id}
+                  className="text-sm text-ink-soft flex justify-between items-center px-4 py-2.5 bg-white rounded-lg border border-black/5"
+                >
+                  <span className="truncate">{p.original_filename}</span>
+                  <PhotoBadge status={p.status} />
+                </li>
+              ))}
+            </ul>
           </div>
-          <a
-            href={`/api/orders/${id}/download`}
-            className="inline-block bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold"
-          >
-            Télécharger le zip ({photos.length} photos)
-          </a>
-        </>
-      ) : (
-        <div className="rounded-xl bg-blue-50 border border-blue-200 p-5">
-          <p className="font-semibold text-blue-900">📸 Geoffrey est en train de retoucher vos photos</p>
-          <p className="text-sm text-blue-800 mt-1">
-            Vous recevrez un email dès que c'est prêt. Délai habituel : 48h ouvrées.
-          </p>
-        </div>
-      )}
-
-      {photos.length > 0 && (
-        <div className="mt-10">
-          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Vos photos</h2>
-          <ul className="space-y-1.5">
-            {photos.map((p) => (
-              <li
-                key={p.id}
-                className="text-sm text-slate-700 flex justify-between px-3 py-2 bg-slate-50 rounded"
-              >
-                <span className="truncate">{p.original_filename}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
+}
+
+function AwaitingUploadCard({ id }: { id: string }) {
+  return (
+    <div className="rounded-2xl bg-white border border-gold/30 shadow-sm p-7">
+      <p className="text-2xl font-extrabold tracking-tight mb-2">📤 Vos photos n'ont pas encore été envoyées</p>
+      <p className="text-ink-soft mb-6 leading-relaxed">
+        Cliquez ci-dessous pour les uploader. Vous pouvez le faire plus tard — le délai de 48h ouvrées
+        commencera à courir à ce moment-là.
+      </p>
+      <Link
+        href={`/order/${id}/upload`}
+        className="inline-block bg-brand hover:bg-brand-dark text-white px-7 py-3.5 rounded-full font-bold tracking-tight transition shadow-sm"
+      >
+        Uploader mes photos →
+      </Link>
+    </div>
+  );
+}
+
+function ProcessingCard({ scheduledAt, count }: { scheduledAt: string | null; count: number }) {
+  const eta = scheduledAt ? formatEta(scheduledAt) : "d'ici 48h ouvrées";
+  return (
+    <div className="rounded-2xl bg-white border border-black/5 shadow-sm overflow-hidden">
+      <div className="bg-brand-soft px-7 py-6">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center text-lg">
+            📸
+          </div>
+          <p className="font-extrabold tracking-tight text-xl text-ink">
+            Geoffrey est en train de retoucher vos photos
+          </p>
+        </div>
+        <p className="text-ink-soft text-sm leading-relaxed">
+          {count} photo{count > 1 ? "s" : ""} en cours. Vous recevrez un email dès que c'est prêt.
+        </p>
+      </div>
+      <div className="px-7 py-6">
+        <Timeline scheduledAt={scheduledAt} />
+        <p className="mt-6 text-sm text-ink-muted">
+          <strong className="text-ink">Livraison estimée :</strong> {eta}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Timeline({ scheduledAt: _scheduledAt }: { scheduledAt: string | null }) {
+  // Three-step visual timeline. Step 1 + 2 marked done, step 3 pending.
+  return (
+    <ol className="space-y-3">
+      <Step done label="Photos reçues" />
+      <Step done label="Retouche en cours" />
+      <Step pending label="Livraison à venir" />
+    </ol>
+  );
+}
+
+function Step({ done, pending, label }: { done?: boolean; pending?: boolean; label: string }) {
+  return (
+    <li className="flex items-center gap-3 text-sm">
+      <span
+        className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+          done ? "bg-emerald-500 text-white" : pending ? "bg-slate-200 text-ink-muted" : "bg-slate-200"
+        }`}
+      >
+        {done ? "✓" : pending ? "" : ""}
+      </span>
+      <span className={done ? "text-ink" : "text-ink-muted"}>{label}</span>
+    </li>
+  );
+}
+
+function DeliveredCard({ id, count }: { id: string; count: number }) {
+  return (
+    <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-7">
+      <p className="text-2xl font-extrabold text-emerald-900 tracking-tight mb-2">
+        ✓ Vos retouches sont prêtes
+      </p>
+      <p className="text-emerald-800 mb-6 leading-relaxed">
+        Lien de téléchargement valide 30 jours.
+      </p>
+      <a
+        href={`/api/orders/${id}/download`}
+        className="inline-block bg-brand hover:bg-brand-dark text-white px-7 py-3.5 rounded-full font-bold tracking-tight transition shadow-sm"
+      >
+        Télécharger le zip ({count} photo{count > 1 ? "s" : ""}) →
+      </a>
+    </div>
+  );
+}
+
+function PhotoBadge({ status }: { status: string }) {
+  switch (status) {
+    case "UPLOADED":
+      return <span className="text-xs text-ink-muted">Reçue</span>;
+    case "PROCESSING":
+      return <span className="text-xs text-brand">Retouche en cours…</span>;
+    case "ENHANCED":
+      return <span className="text-xs text-emerald-600 font-bold">✓</span>;
+    case "FAILED":
+      return <span className="text-xs text-red-600">Échec</span>;
+    default:
+      return <span className="text-xs text-ink-muted">{status}</span>;
+  }
+}
+
+function formatEta(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
