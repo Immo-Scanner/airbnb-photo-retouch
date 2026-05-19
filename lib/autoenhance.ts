@@ -42,13 +42,20 @@ export async function registerImage(imageName: string): Promise<RegisterImageRes
   } catch {
     throw new Error(`AutoEnhance register: non-JSON response: ${text.slice(0, 200)}`);
   }
-  const payload = parsed as Partial<RegisterImageResponse>;
-  if (!payload.image_id || !payload.upload_url) {
+  const payload = parsed as Record<string, unknown>;
+  // The v3 response is large (full image metadata) and the field names vary
+  // slightly across docs vs production. Pick the actual identifier and upload
+  // URL by trying a few known aliases.
+  const imageId = (payload.image_id ?? payload.id) as string | undefined;
+  const uploadUrl = (payload.upload_url ?? payload.s3_upload_url ?? payload.url) as string | undefined;
+  const orderId = (payload.order_id ?? "") as string;
+  if (!imageId || !uploadUrl) {
+    const keys = Object.keys(payload).join(", ");
     throw new Error(
-      `AutoEnhance register: missing image_id/upload_url in response: ${text.slice(0, 200)}`
+      `AutoEnhance register: no image_id/upload_url in response. keys=[${keys}] body=${text.slice(0, 800)}`
     );
   }
-  return payload as RegisterImageResponse;
+  return { image_id: imageId, upload_url: uploadUrl, order_id: orderId };
 }
 
 export async function uploadImageBinary(uploadUrl: string, body: ArrayBuffer | Buffer | Uint8Array) {
