@@ -25,21 +25,42 @@ export interface RegisterImageResponse {
   order_id: string;
 }
 
-export async function registerImage(imageName: string, orderId?: string): Promise<RegisterImageResponse> {
+export async function registerImage(imageName: string): Promise<RegisterImageResponse> {
+  // We deliberately do NOT send our internal order_id — AutoEnhance manages
+  // its own "orders" and rejects external IDs (was the root cause of an
+  // intermittent "undefined upload_url" returned from the API).
   const res = await fetch(`${BASE}/images/`, {
     method: "POST",
     headers: { ...headers(), "Content-Type": "application/json" },
-    body: JSON.stringify({ image_name: imageName, ...(orderId ? { order_id: orderId } : {}) }),
+    body: JSON.stringify({ image_name: imageName }),
   });
-  if (!res.ok) throw new Error(`AutoEnhance register failed: ${res.status} ${await res.text()}`);
-  return (await res.json()) as RegisterImageResponse;
+  const text = await res.text();
+  if (!res.ok) throw new Error(`AutoEnhance register failed: ${res.status} ${text}`);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error(`AutoEnhance register: non-JSON response: ${text.slice(0, 200)}`);
+  }
+  const payload = parsed as Partial<RegisterImageResponse>;
+  if (!payload.image_id || !payload.upload_url) {
+    throw new Error(
+      `AutoEnhance register: missing image_id/upload_url in response: ${text.slice(0, 200)}`
+    );
+  }
+  return payload as RegisterImageResponse;
 }
 
 export async function uploadImageBinary(uploadUrl: string, body: ArrayBuffer | Buffer | Uint8Array) {
+  if (!uploadUrl) throw new Error("AutoEnhance uploadImageBinary: uploadUrl is empty");
+  // Normalize to Uint8Array — node:fetch in some runtimes mis-handles raw
+  // ArrayBuffer in the body and surfaces a confusing "toString of undefined".
+  const normalized: BodyInit =
+    body instanceof Uint8Array ? body : body instanceof ArrayBuffer ? new Uint8Array(body) : body;
   const res = await fetch(uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": "application/octet-stream" },
-    body: body as BodyInit,
+    body: normalized,
   });
   if (!res.ok) throw new Error(`AutoEnhance upload failed: ${res.status} ${await res.text()}`);
 }

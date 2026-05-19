@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       if (!fileRes.ok) throw new Error(`download original failed: ${fileRes.status}`);
       const bin = await fileRes.arrayBuffer();
 
-      const reg = await registerImage(`order_${orderId}_photo_${photo.id}`, orderId);
+      const reg = await registerImage(`order_${orderId}_photo_${photo.id}`);
       await uploadImageBinary(reg.upload_url, bin);
 
       await admin

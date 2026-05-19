@@ -76,3 +76,27 @@ export function scheduleDelivery(from: Date, businessHoursToAdd: number = 48): D
 
   return fromZonedTime(cursor, TZ);
 }
+
+/**
+ * Returns the first 9am business-day Paris time AT or AFTER `from`.
+ * Used to gate the "Geoffrey est en train de retoucher" copy: a credible
+ * human photographer doesn't start retouching the second the photos land —
+ * he starts the next morning at the earliest.
+ */
+export function nextBusinessDayStart(from: Date): Date {
+  let cursor = toZonedTime(from, TZ);
+  cursor = setMinutes(setSeconds(setMilliseconds(cursor, 0), 0), 0);
+
+  // If we're already after 9am on a business day, jump to tomorrow.
+  if (!isWeekend(cursor) && cursor.getHours() >= BUSINESS_START_HOUR) {
+    cursor = setHours(addDays(cursor, 1), BUSINESS_START_HOUR);
+  } else {
+    cursor = setHours(cursor, BUSINESS_START_HOUR);
+  }
+
+  // Skip weekends.
+  while (isWeekend(cursor)) {
+    cursor = setHours(addDays(cursor, 1), BUSINESS_START_HOUR);
+  }
+  return fromZonedTime(cursor, TZ);
+}

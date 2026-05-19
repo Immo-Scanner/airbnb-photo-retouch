@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { adminSupabase } from "@/lib/supabase/admin";
 import { authorizedOrderId } from "@/lib/order-token";
+import { nextBusinessDayStart } from "@/lib/business-hours";
 import type { OrderRow, PhotoRow } from "@/lib/database.types";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +64,11 @@ export default async function OrderPage({
 
         {order.status === "AWAITING_UPLOAD" && <AwaitingUploadCard id={id} />}
         {(order.status === "PROCESSING" || order.status === "READY") && (
-          <ProcessingCard scheduledAt={order.scheduled_delivery_at} count={photos.length} />
+          <ProcessingCard
+            scheduledAt={order.scheduled_delivery_at}
+            uploadCompletedAt={order.upload_completed_at}
+            count={photos.length}
+          />
         )}
         {order.status === "DELIVERED" && <DeliveredCard id={id} count={photos.length} />}
 
@@ -108,25 +113,40 @@ function AwaitingUploadCard({ id }: { id: string }) {
   );
 }
 
-function ProcessingCard({ scheduledAt, count }: { scheduledAt: string | null; count: number }) {
-  const eta = scheduledAt ? formatEta(scheduledAt) : "d'ici 48h ouvrées";
+function ProcessingCard({
+  scheduledAt,
+  uploadCompletedAt,
+  count,
+}: {
+  scheduledAt: string | null;
+  uploadCompletedAt: string | null;
+  count: number;
+}) {
+  const eta = scheduledAt ? formatEtaDate(scheduledAt) : "d'ici 48h ouvrées";
+  const hasStartedWorking = uploadCompletedAt
+    ? new Date() >= nextBusinessDayStart(new Date(uploadCompletedAt))
+    : true;
+
+  const title = hasStartedWorking
+    ? "Geoffrey est en train de retoucher vos photos"
+    : "Photos bien reçues ✓";
+  const body = hasStartedWorking
+    ? `${count} photo${count > 1 ? "s" : ""} en cours. Vous recevrez un email dès que c'est prêt.`
+    : `On a bien reçu vos ${count} photo${count > 1 ? "s" : ""}. Geoffrey les prendra en main demain matin.`;
+
   return (
     <div className="rounded-2xl bg-white border border-black/5 shadow-sm overflow-hidden">
       <div className="bg-brand-soft px-7 py-6">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-10 h-10 rounded-full bg-brand text-white flex items-center justify-center text-lg">
-            📸
+            {hasStartedWorking ? "📸" : "✓"}
           </div>
-          <p className="font-extrabold tracking-tight text-xl text-ink">
-            Geoffrey est en train de retoucher vos photos
-          </p>
+          <p className="font-extrabold tracking-tight text-xl text-ink">{title}</p>
         </div>
-        <p className="text-ink-soft text-sm leading-relaxed">
-          {count} photo{count > 1 ? "s" : ""} en cours. Vous recevrez un email dès que c'est prêt.
-        </p>
+        <p className="text-ink-soft text-sm leading-relaxed">{body}</p>
       </div>
       <div className="px-7 py-6">
-        <Timeline scheduledAt={scheduledAt} />
+        <Timeline hasStartedWorking={hasStartedWorking} />
         <p className="mt-6 text-sm text-ink-muted">
           <strong className="text-ink">Livraison estimée :</strong> {eta}
         </p>
@@ -135,12 +155,11 @@ function ProcessingCard({ scheduledAt, count }: { scheduledAt: string | null; co
   );
 }
 
-function Timeline({ scheduledAt: _scheduledAt }: { scheduledAt: string | null }) {
-  // Three-step visual timeline. Step 1 + 2 marked done, step 3 pending.
+function Timeline({ hasStartedWorking }: { hasStartedWorking: boolean }) {
   return (
     <ol className="space-y-3">
       <Step done label="Photos reçues" />
-      <Step done label="Retouche en cours" />
+      <Step done={hasStartedWorking} pending={!hasStartedWorking} label="Retouche en cours" />
       <Step pending label="Livraison à venir" />
     </ol>
   );
@@ -195,13 +214,10 @@ function PhotoBadge({ status }: { status: string }) {
   }
 }
 
-function formatEta(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString("fr-FR", {
+function formatEtaDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("fr-FR", {
     weekday: "long",
     day: "numeric",
     month: "long",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
