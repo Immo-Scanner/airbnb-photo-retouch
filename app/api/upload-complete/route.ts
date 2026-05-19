@@ -93,7 +93,8 @@ export async function POST(req: Request) {
   }
 
   const now = new Date();
-  const scheduledAt = scheduleDelivery(now, 48);
+  const delayHours = Number(process.env.DELIVERY_DELAY_HOURS ?? "48");
+  const scheduledAt = scheduleDelivery(now, Number.isFinite(delayHours) ? delayHours : 48);
 
   await admin
     .from("orders")

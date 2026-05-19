@@ -23,6 +23,11 @@ const BUSINESS_HOURS_PER_DAY = BUSINESS_END_HOUR - BUSINESS_START_HOUR;
  *   credible.
  */
 export function scheduleDelivery(from: Date, businessHoursToAdd: number = 48): Date {
+  // Test mode: 0 means "deliver as soon as AutoEnhance is done". No randomization,
+  // no business-hour snapping. Returned as-is so the cron picks it up on the
+  // next 15-min poll.
+  if (businessHoursToAdd <= 0) return from;
+
   let cursor = toZonedTime(from, TZ);
   let remaining = businessHoursToAdd;
 
