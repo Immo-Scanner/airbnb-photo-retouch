@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { adminSupabase } from "@/lib/supabase/admin";
 import { authorizedOrderId } from "@/lib/order-token";
-import { registerImage, uploadImageBinary } from "@/lib/autoenhance";
+import { createOrder as createAutoEnhanceOrder, registerImage, uploadImageBinary } from "@/lib/autoenhance";
 import { scheduleDelivery } from "@/lib/business-hours";
 
 export const runtime = "nodejs";
@@ -33,15 +33,40 @@ export async function POST(req: Request) {
   const admin = adminSupabase();
   const orderRes = (await admin
     .from("orders")
-    .select("id, photos_quota, status")
+    .select("id, photos_quota, status, email, customer_name, autoenhance_order_id")
     .eq("id", orderId)
-    .single()) as { data: { id: string; photos_quota: number; status: string } | null };
+    .single()) as {
+    data: {
+      id: string;
+      photos_quota: number;
+      status: string;
+      email: string | null;
+      customer_name: string | null;
+      autoenhance_order_id: string | null;
+    } | null;
+  };
   const order = orderRes.data;
   if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (order.status !== "AWAITING_UPLOAD")
     return NextResponse.json({ error: "order already processed" }, { status: 409 });
   if (files.length > order.photos_quota)
     return NextResponse.json({ error: "quota exceeded" }, { status: 400 });
+
+  // Ensure a single AutoEnhance "order" exists for this customer order, titled
+  // with their name + email so it shows up legibly in the AE dashboard.
+  let autoenhanceOrderId = order.autoenhance_order_id;
+  if (!autoenhanceOrderId) {
+    const title = order.customer_name
+      ? `${order.customer_name} <${order.email ?? "?"}>`
+      : (order.email ?? `Commande ${orderId.slice(0, 8)}`);
+    try {
+      const ae = await createAutoEnhanceOrder(title);
+      autoenhanceOrderId = ae.order_id;
+      await admin.from("orders").update({ autoenhance_order_id: autoenhanceOrderId }).eq("id", orderId);
+    } catch (e) {
+      console.error("[upload-complete] AE order create failed (continuing without grouping)", e);
+    }
+  }
 
   const photoRows = files.map((f) => ({
     order_id: orderId,
@@ -72,7 +97,10 @@ export async function POST(req: Request) {
       if (!fileRes.ok) throw new Error(`download original failed: ${fileRes.status}`);
       const bin = await fileRes.arrayBuffer();
 
-      const reg = await registerImage(`order_${orderId}_photo_${photo.id}`);
+      const reg = await registerImage(
+        `order_${orderId}_photo_${photo.id}`,
+        autoenhanceOrderId ?? undefined
+      );
       await uploadImageBinary(reg.upload_url, bin);
 
       await admin

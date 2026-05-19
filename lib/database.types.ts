@@ -13,6 +13,8 @@ export interface OrderRow {
   id: string;
   user_id: string | null;
   email: string | null;
+  customer_name: string | null;
+  autoenhance_order_id: string | null;
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
   tier: OrderTier;

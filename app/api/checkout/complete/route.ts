@@ -35,6 +35,7 @@ export async function POST(req: Request) {
     paymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : null,
     tier,
     email,
+    customerName: session.customer_details?.name ?? null,
     sendCustomerEmail: false,
   });
 

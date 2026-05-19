@@ -35,9 +35,9 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
 
   const orderRes = (await admin
     .from("orders")
-    .select("status")
+    .select("status, autoenhance_order_id")
     .eq("id", photo.order_id)
-    .single()) as { data: { status: string } | null };
+    .single()) as { data: { status: string; autoenhance_order_id: string | null } | null };
   if (orderRes.data?.status === "DELIVERED") {
     return NextResponse.json({ error: "order already delivered" }, { status: 409 });
   }
@@ -52,7 +52,10 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     if (!fileRes.ok) throw new Error(`download original failed: ${fileRes.status}`);
     const bin = await fileRes.arrayBuffer();
 
-    const reg = await registerImage(`order_${photo.order_id}_photo_${photo.id}_retry`);
+    const reg = await registerImage(
+      `order_${photo.order_id}_photo_${photo.id}_retry`,
+      orderRes.data?.autoenhance_order_id ?? undefined
+    );
     await uploadImageBinary(reg.upload_url, bin);
 
     await admin

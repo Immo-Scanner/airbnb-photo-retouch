@@ -16,6 +16,7 @@ export async function createOrderIfMissing(opts: {
   paymentIntent: string | null;
   tier: Tier;
   email: string;
+  customerName: string | null;
   sendCustomerEmail: boolean;
 }): Promise<{ orderId: string; created: boolean }> {
   const admin = adminSupabase();
@@ -37,6 +38,7 @@ export async function createOrderIfMissing(opts: {
       amount_cents: TIERS[opts.tier].amount,
       status: "AWAITING_UPLOAD",
       email: opts.email,
+      customer_name: opts.customerName,
     })
     .select("id")
     .single();

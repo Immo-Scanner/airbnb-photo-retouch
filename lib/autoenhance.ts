@@ -25,14 +25,45 @@ export interface RegisterImageResponse {
   order_id: string;
 }
 
-export async function registerImage(imageName: string): Promise<RegisterImageResponse> {
-  // We deliberately do NOT send our internal order_id — AutoEnhance manages
-  // its own "orders" and rejects external IDs (was the root cause of an
-  // intermittent "undefined upload_url" returned from the API).
+/**
+ * Create an AutoEnhance "order" — a grouping bucket for images. We use one
+ * per customer order so all 5/20 photos of a single Stripe checkout show up
+ * bundled in the Autoenhance dashboard with the customer name + email as the
+ * title.
+ */
+export async function createOrder(name: string): Promise<{ order_id: string }> {
+  const res = await fetch(`${BASE}/orders/`, {
+    method: "POST",
+    headers: { ...headers(), "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`AutoEnhance create order failed: ${res.status} ${text}`);
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new Error(`AutoEnhance create order: non-JSON response: ${text.slice(0, 200)}`);
+  }
+  const orderId = (parsed.order_id ?? parsed.id) as string | undefined;
+  if (!orderId) {
+    const keys = Object.keys(parsed).join(", ");
+    throw new Error(`AutoEnhance create order: no order_id. keys=[${keys}] body=${text.slice(0, 500)}`);
+  }
+  return { order_id: orderId };
+}
+
+export async function registerImage(
+  imageName: string,
+  autoenhanceOrderId?: string
+): Promise<RegisterImageResponse> {
   const res = await fetch(`${BASE}/images/`, {
     method: "POST",
     headers: { ...headers(), "Content-Type": "application/json" },
-    body: JSON.stringify({ image_name: imageName }),
+    body: JSON.stringify({
+      image_name: imageName,
+      ...(autoenhanceOrderId ? { order_id: autoenhanceOrderId } : {}),
+    }),
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`AutoEnhance register failed: ${res.status} ${text}`);
