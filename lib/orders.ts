@@ -66,7 +66,7 @@ function orderEmailHtml(link: string): string {
     <div style="font-family: ui-sans-serif, system-ui; max-width: 560px; margin: 0 auto;">
       <h2>Merci pour votre commande 📸</h2>
       <p>Pour démarrer, uploadez vos photos depuis votre espace personnel :</p>
-      <p><a href="${link}" style="background:#f97316;color:white;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Uploader mes photos</a></p>
+      <p><a href="${link}" style="background:#114e0b;color:white;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;">Uploader mes photos</a></p>
       <p>Geoffrey commencera la retouche dès réception. Délai habituel : 48h ouvrées.</p>
       <p>— Geoffrey</p>
     </div>

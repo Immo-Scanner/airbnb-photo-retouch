@@ -48,7 +48,7 @@ export function deliveryEmailHtml(link: string): string {
       dès maintenant depuis votre espace :</p>
       <p>
         <a href="${link}"
-           style="background: #f97316; color: white; padding: 12px 20px; border-radius: 8px; text-decoration: none; display: inline-block;">
+           style="background: #114e0b; color: white; padding: 12px 20px; border-radius: 8px; text-decoration: none; display: inline-block; font-weight: 600;">
           Télécharger mes photos
         </a>
       </p>
