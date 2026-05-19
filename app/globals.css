@@ -1,14 +1,24 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: 255 255 255;
-  --foreground: 15 23 42;
+html, body {
+  background: #ffffff;
+  color: #112527;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "cv11";
 }
 
-html, body {
-  background: rgb(var(--background));
-  color: rgb(var(--foreground));
-  -webkit-font-smoothing: antialiased;
+/* Long-form prose readability — generous line-height and paragraph rhythm */
+.prose-immo p {
+  line-height: 1.75;
+  font-size: 1.0625rem;
+}
+@media (min-width: 768px) {
+  .prose-immo p {
+    font-size: 1.125rem;
+  }
 }
