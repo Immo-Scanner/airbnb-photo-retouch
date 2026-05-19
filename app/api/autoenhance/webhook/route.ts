@@ -20,6 +20,8 @@ export async function POST(req: Request) {
   // of the common formats: Authorization raw, Authorization Bearer, or a few
   // X-* header variants.
   const candidates = [
+    // AutoEnhance actually sends a custom `Authentication:` header (not Authorization).
+    req.headers.get("authentication") ?? "",
     req.headers.get("authorization") ?? "",
     (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, ""),
     req.headers.get("x-authorization") ?? "",
