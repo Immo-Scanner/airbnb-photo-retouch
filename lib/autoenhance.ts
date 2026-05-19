@@ -55,12 +55,12 @@ export async function uploadImageBinary(uploadUrl: string, body: ArrayBuffer | B
   if (!uploadUrl) throw new Error("AutoEnhance uploadImageBinary: uploadUrl is empty");
   // Normalize to Uint8Array — node:fetch in some runtimes mis-handles raw
   // ArrayBuffer in the body and surfaces a confusing "toString of undefined".
-  const normalized: BodyInit =
+  const normalized =
     body instanceof Uint8Array ? body : body instanceof ArrayBuffer ? new Uint8Array(body) : body;
   const res = await fetch(uploadUrl, {
     method: "PUT",
     headers: { "Content-Type": "application/octet-stream" },
-    body: normalized,
+    body: normalized as BodyInit,
   });
   if (!res.ok) throw new Error(`AutoEnhance upload failed: ${res.status} ${await res.text()}`);
 }
