@@ -53,6 +53,49 @@ export async function createOrder(name: string): Promise<{ order_id: string }> {
   return { order_id: orderId };
 }
 
+/**
+ * Tuned defaults for short-term-rental / Airbnb photos. These are NOT the
+ * generic "property" preset — they push the AI toward the warmer, more
+ * inviting feel that converts on STR platforms.
+ *
+ * Why each one:
+ *   ai_version 5.x             → latest model, includes window-pull-with-skies
+ *   enhance_type "warm"        → inviting tones (vs "neutral" / "modern")
+ *   cloud_type "LOW_CLOUD"     → vibrant blue + puffy clouds (sells the dream)
+ *   sky_replacement true       → kills overcast / grey skies
+ *   window_pull_type WINDOWS_WITH_SKIES → bright windows showing the view
+ *   vertical_correction true   → straightens walls (huge perceived quality boost)
+ *   lens_correction true       → corrects wide-angle distortion
+ *   privacy true               → blurs faces / license plates if any
+ *
+ * Restage (in-painting: fireplaces, grass, photographer removal, TV black-out)
+ * is OPT-IN via AUTOENHANCE_RESTAGE=true because it likely consumes premium
+ * credits — turn it on once we've confirmed the billing impact.
+ */
+function strEnhanceBody(): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    enhance: true,
+    ai_version: process.env.AUTOENHANCE_AI_VERSION ?? "5.x",
+    enhance_type: process.env.AUTOENHANCE_ENHANCE_TYPE ?? "warm",
+    cloud_type: process.env.AUTOENHANCE_CLOUD_TYPE ?? "LOW_CLOUD",
+    sky_replacement: true,
+    window_pull_type: process.env.AUTOENHANCE_WINDOW_PULL ?? "WINDOWS_WITH_SKIES",
+    vertical_correction: true,
+    lens_correction: true,
+    privacy: true,
+    upscale: false,
+  };
+  if (process.env.AUTOENHANCE_RESTAGE === "true") {
+    base.restage = {
+      fire_in_fireplaces: "ALIGHT",
+      grass: "GREEN",
+      photographer: "REMOVE",
+      tvs: "BLACK_OUT",
+    };
+  }
+  return base;
+}
+
 export async function registerImage(
   imageName: string,
   autoenhanceOrderId?: string
@@ -63,6 +106,7 @@ export async function registerImage(
     body: JSON.stringify({
       image_name: imageName,
       ...(autoenhanceOrderId ? { order_id: autoenhanceOrderId } : {}),
+      ...strEnhanceBody(),
     }),
   });
   const text = await res.text();
