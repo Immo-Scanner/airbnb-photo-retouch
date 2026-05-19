@@ -4,6 +4,7 @@ import { adminSupabase } from "@/lib/supabase/admin";
 import { authorizedOrderId } from "@/lib/order-token";
 import { nextBusinessDayStart } from "@/lib/business-hours";
 import type { OrderRow, PhotoRow } from "@/lib/database.types";
+import { RetryPhotoButton } from "./retry-photo-button";
 
 export const dynamic = "force-dynamic";
 
@@ -81,10 +82,15 @@ export default async function OrderPage({
               {photos.map((p) => (
                 <li
                   key={p.id}
-                  className="text-sm text-ink-soft flex justify-between items-center px-4 py-2.5 bg-white rounded-lg border border-black/5"
+                  className="text-sm text-ink-soft flex justify-between items-center gap-3 px-4 py-2.5 bg-white rounded-lg border border-black/5"
                 >
-                  <span className="truncate">{p.original_filename}</span>
-                  <PhotoBadge status={p.status} />
+                  <span className="truncate flex-1">{p.original_filename}</span>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {p.status === "FAILED" && order.status !== "DELIVERED" && (
+                      <RetryPhotoButton photoId={p.id} />
+                    )}
+                    <PhotoBadge status={p.status} />
+                  </div>
                 </li>
               ))}
             </ul>
