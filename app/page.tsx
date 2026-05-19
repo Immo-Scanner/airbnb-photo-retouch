@@ -23,7 +23,6 @@ export default function LandingPage() {
             de taux d'occupation en moins de 72h</strong>, même si votre annonce
             est déjà optimisée et votre marché saturé.
           </p>
-          <PrimaryCTA className="mt-10">Découvrir le protocole</PrimaryCTA>
         </div>
       </section>
 
@@ -116,8 +115,6 @@ export default function LandingPage() {
           coûter <strong>400 à 600 € pour 97 €</strong>. Nous enrichissons notre dataset.
         </Para>
         <Para>Échange équitable. Aucune zone d'ombre.</Para>
-
-        <PrimaryCTA className="mt-10">Voir les formules</PrimaryCTA>
       </Section>
 
       {/* === CURIOSITÉ === */}
@@ -161,9 +158,6 @@ export default function LandingPage() {
             author="Thomas R."
             meta="2 biens · Lyon"
           />
-        </div>
-        <div className="mt-12 text-center">
-          <PrimaryCTA>Je veux ce résultat</PrimaryCTA>
         </div>
       </Section>
 
@@ -285,7 +279,7 @@ export default function LandingPage() {
           </Para>
         </div>
         <div className="mt-12 text-center">
-          <PrimaryCTA size="lg">Je réserve mes créneaux</PrimaryCTA>
+          <PrimaryCTA size="lg">Voir les formules</PrimaryCTA>
         </div>
       </Section>
 
@@ -313,7 +307,7 @@ export default function LandingPage() {
           <Para>Garantie satisfait ou remboursé incluse.</Para>
         </div>
         <div className="mt-12 text-center">
-          <PrimaryCTA size="lg">Je réserve mes créneaux</PrimaryCTA>
+          <PrimaryCTA size="lg">Voir les formules</PrimaryCTA>
         </div>
       </Section>
 
@@ -393,16 +387,18 @@ function PrimaryCTA({
   className?: string;
   size?: "md" | "lg";
 }) {
+  // All in-page CTAs scroll back to the tarifs section. Only the per-tier
+  // buttons inside PricingCard go directly to Stripe checkout.
   const sizeCls = size === "lg" ? "px-8 py-5 text-lg" : "px-7 py-4 text-base";
   return (
     <div className={className}>
-      <Link
-        href="/api/checkout?tier=M"
+      <a
+        href="#pricing"
         className={`inline-flex items-center gap-2 ${sizeCls} bg-brand hover:bg-brand-dark text-white rounded-full font-bold tracking-tight shadow-sm hover:shadow-md transition-all`}
       >
         {children}
-        <span aria-hidden>→</span>
-      </Link>
+        <span aria-hidden>↑</span>
+      </a>
     </div>
   );
 }
