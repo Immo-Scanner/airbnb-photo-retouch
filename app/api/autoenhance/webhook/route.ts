@@ -13,9 +13,28 @@ export const maxDuration = 60;
  * env and paste the same value into the Autoenhance webhook config.
  */
 export async function POST(req: Request) {
-  const auth = req.headers.get("authorization") ?? "";
   const expected = process.env.AUTOENHANCE_WEBHOOK_TOKEN ?? "";
-  if (!expected || auth !== expected) {
+  if (!expected) return NextResponse.json({ error: "server not configured" }, { status: 500 });
+
+  // AutoEnhance's docs don't pin down where it puts the auth value. Accept any
+  // of the common formats: Authorization raw, Authorization Bearer, or a few
+  // X-* header variants.
+  const candidates = [
+    req.headers.get("authorization") ?? "",
+    (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, ""),
+    req.headers.get("x-authorization") ?? "",
+    req.headers.get("x-webhook-token") ?? "",
+    req.headers.get("x-auth-token") ?? "",
+  ];
+
+  if (!candidates.some((v) => v && v === expected)) {
+    console.warn(
+      "[autoenhance-webhook] 401",
+      "headers=",
+      Array.from(req.headers.keys()).join(","),
+      "auth-len=",
+      (req.headers.get("authorization") ?? "").length
+    );
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
