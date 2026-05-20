@@ -55,7 +55,11 @@ export async function enhanceImage(input: ArrayBuffer, filename: string): Promis
   form.append("quality", process.env.OPENAI_IMAGE_QUALITY ?? "high");
   form.append("output_format", "jpeg");
   // gpt-image-1 accepts up to 16 images; we only ever send one.
-  form.append("image", new Blob([normalized], { type: "image/jpeg" }), safeName);
+  // Copy into a fresh Uint8Array so the Blob constructor sees an
+  // ArrayBuffer-backed view (Buffer's ArrayBufferLike trips strict DOM types).
+  const bytes = new Uint8Array(normalized.byteLength);
+  bytes.set(normalized);
+  form.append("image", new Blob([bytes], { type: "image/jpeg" }), safeName);
 
   const res = await fetch("https://api.openai.com/v1/images/edits", {
     method: "POST",
