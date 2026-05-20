@@ -32,25 +32,72 @@ export async function GET(req: Request) {
 
   const admin = adminSupabase();
 
-  const pendingRes = (await admin
-    .from("photos")
-    .select("id, order_id, original_path, original_filename")
-    .eq("status", "UPLOADED")
-    .order("created_at", { ascending: true })
-    .limit(1)) as {
-    data: { id: string; order_id: string; original_path: string; original_filename: string }[] | null;
+  type PhotoRow = {
+    id: string;
+    order_id: string;
+    original_path: string;
+    original_filename: string;
   };
-  const next = pendingRes.data?.[0];
+
+  // Pick the oldest UPLOADED photo first.
+  let next: PhotoRow | undefined = (
+    (await admin
+      .from("photos")
+      .select("id, order_id, original_path, original_filename")
+      .eq("status", "UPLOADED")
+      .order("created_at", { ascending: true })
+      .limit(1)) as { data: PhotoRow[] | null }
+  ).data?.[0];
+
+  // If none, look for a "stuck" PROCESSING photo — locked by a previous tick
+  // that crashed (Vercel 60s timeout during OpenAI or Supabase upload).
+  // 3 minutes is well above the worst-case successful tick (~50s).
+  let recovering = false;
+  if (!next) {
+    const stuckThreshold = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    const stuck = (
+      (await admin
+        .from("photos")
+        .select("id, order_id, original_path, original_filename")
+        .eq("status", "PROCESSING")
+        .lt("updated_at", stuckThreshold)
+        .order("updated_at", { ascending: true })
+        .limit(1)) as { data: PhotoRow[] | null }
+    ).data?.[0];
+    if (stuck) {
+      next = stuck;
+      recovering = true;
+      // Flip stuck → UPLOADED first so the standard atomic-lock below works.
+      await admin
+        .from("photos")
+        .update({ status: "UPLOADED" })
+        .eq("id", stuck.id)
+        .eq("status", "PROCESSING");
+    }
+  }
 
   if (!next) {
     console.log(`[process-photos ${runId}] nothing pending`);
     return NextResponse.json({ run: runId, processed: 0 });
   }
 
-  console.log(`[process-photos ${runId}] picking photo ${next.id} of order ${next.order_id}`);
+  console.log(
+    `[process-photos ${runId}] ${recovering ? "RECOVERING stuck" : "picking"} photo ${next.id} of order ${next.order_id}`
+  );
 
   // Mark PROCESSING up front so a concurrent tick can't grab the same row.
-  await admin.from("photos").update({ status: "PROCESSING" }).eq("id", next.id).eq("status", "UPLOADED");
+  // Use the conditional update as a row-level lock — if another tick already
+  // flipped it, our update touches 0 rows and we bail.
+  const lockRes = (await admin
+    .from("photos")
+    .update({ status: "PROCESSING" })
+    .eq("id", next.id)
+    .eq("status", "UPLOADED")
+    .select("id")) as { data: { id: string }[] | null };
+  if (!lockRes.data || lockRes.data.length === 0) {
+    console.log(`[process-photos ${runId}] lost race on ${next.id} — yielding`);
+    return NextResponse.json({ run: runId, processed: 0, photo_id: next.id, raced: true });
+  }
 
   try {
     const { data: signed } = await admin.storage
