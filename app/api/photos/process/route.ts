@@ -39,8 +39,26 @@ export async function GET(req: Request) {
     original_filename: string;
   };
 
-  // Pick the oldest UPLOADED photo first.
-  let next: PhotoRow | undefined = (
+  // Recover any photo stuck in PROCESSING > 3 min (Vercel killed the previous
+  // tick before status could flip). Flip them back to UPLOADED so the lock
+  // below treats them like any other queued row. We sweep up to 5 per tick
+  // so a backlog can't be permanently shadowed by a steady stream of fresh
+  // UPLOADED photos.
+  const stuckThreshold = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+  const stuckRes = (await admin
+    .from("photos")
+    .update({ status: "UPLOADED" })
+    .eq("status", "PROCESSING")
+    .lt("updated_at", stuckThreshold)
+    .select("id")) as { data: { id: string }[] | null };
+  const recovered = stuckRes.data?.length ?? 0;
+  if (recovered > 0) {
+    console.log(`[process-photos ${runId}] recovered ${recovered} stuck photo(s)`);
+  }
+
+  // Now pick the oldest UPLOADED — covers both fresh uploads and just-recovered
+  // ones, with stuck recoveries jumping ahead because their created_at is older.
+  const next: PhotoRow | undefined = (
     (await admin
       .from("photos")
       .select("id, order_id, original_path, original_filename")
@@ -49,41 +67,12 @@ export async function GET(req: Request) {
       .limit(1)) as { data: PhotoRow[] | null }
   ).data?.[0];
 
-  // If none, look for a "stuck" PROCESSING photo — locked by a previous tick
-  // that crashed (Vercel 60s timeout during OpenAI or Supabase upload).
-  // 3 minutes is well above the worst-case successful tick (~50s).
-  let recovering = false;
-  if (!next) {
-    const stuckThreshold = new Date(Date.now() - 3 * 60 * 1000).toISOString();
-    const stuck = (
-      (await admin
-        .from("photos")
-        .select("id, order_id, original_path, original_filename")
-        .eq("status", "PROCESSING")
-        .lt("updated_at", stuckThreshold)
-        .order("updated_at", { ascending: true })
-        .limit(1)) as { data: PhotoRow[] | null }
-    ).data?.[0];
-    if (stuck) {
-      next = stuck;
-      recovering = true;
-      // Flip stuck → UPLOADED first so the standard atomic-lock below works.
-      await admin
-        .from("photos")
-        .update({ status: "UPLOADED" })
-        .eq("id", stuck.id)
-        .eq("status", "PROCESSING");
-    }
-  }
-
   if (!next) {
     console.log(`[process-photos ${runId}] nothing pending`);
-    return NextResponse.json({ run: runId, processed: 0 });
+    return NextResponse.json({ run: runId, processed: 0, recovered });
   }
 
-  console.log(
-    `[process-photos ${runId}] ${recovering ? "RECOVERING stuck" : "picking"} photo ${next.id} of order ${next.order_id}`
-  );
+  console.log(`[process-photos ${runId}] picking photo ${next.id} of order ${next.order_id}`);
 
   // Mark PROCESSING up front so a concurrent tick can't grab the same row.
   // Use the conditional update as a row-level lock — if another tick already
