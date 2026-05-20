@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { TIERS, type Tier } from "@/lib/tiers";
 import { createOrderIfMissing } from "@/lib/orders";
+import { tagBuyer } from "@/lib/active-campaign";
 
 export const runtime = "nodejs";
 
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "missing metadata or email" }, { status: 400 });
   }
 
-  await createOrderIfMissing({
+  const result = await createOrderIfMissing({
     sessionId: session.id,
     paymentIntent: typeof session.payment_intent === "string" ? session.payment_intent : null,
     tier,
@@ -43,6 +44,14 @@ export async function POST(req: Request) {
     customerName: session.customer_details?.name ?? null,
     sendCustomerEmail: true,
   });
+
+  // Tag the buyer in ActiveCampaign on first order creation only — Stripe
+  // can replay this webhook, but createOrderIfMissing dedupes on session_id
+  // so we only fire AC the first time. (Even if it fired twice, the AC tag
+  // endpoint is idempotent — this is just hygiene.)
+  if (result.created) {
+    await tagBuyer({ email, fullName: session.customer_details?.name ?? null });
+  }
 
   return NextResponse.json({ received: true });
 }
