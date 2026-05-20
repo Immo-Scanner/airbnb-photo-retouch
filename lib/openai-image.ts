@@ -17,6 +17,8 @@ const ENHANCE_PROMPT =
   process.env.OPENAI_IMAGE_PROMPT ??
   "À la manière d'un photographe immobilier professionnel, modifie légèrement cette photo en lui restant fidèle afin de la rendre plus attractive dans le cadre d'une annonce pour de la location courte durée premium";
 
+import sharp from "sharp";
+
 interface EditResult {
   b64: string;
   mime: string;
@@ -26,6 +28,25 @@ export async function enhanceImage(input: ArrayBuffer, filename: string): Promis
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
+  // Normalize the input first. OpenAI's /v1/images/edits rejects HEIC,
+  // CMYK JPEGs, oversized files, or anything its decoder doesn't recognise
+  // with "invalid_image_file". iPhone photos saved with a .jpeg extension
+  // are often still HEIC under the hood, which is the #1 cause of that
+  // error in real-world traffic.
+  let normalized: Buffer;
+  try {
+    normalized = await sharp(Buffer.from(input), { failOn: "none" })
+      .rotate() // apply EXIF orientation so the AI sees the image upright
+      .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
+      .toColourspace("srgb")
+      .jpeg({ quality: 92, mozjpeg: true })
+      .toBuffer();
+  } catch (e) {
+    throw new Error(`image normalization failed (unsupported format?): ${(e as Error).message}`);
+  }
+
+  const safeName = filename.replace(/\.[^.]+$/, "") + ".jpg";
+
   const form = new FormData();
   form.append("model", "gpt-image-1");
   form.append("prompt", ENHANCE_PROMPT);
@@ -34,7 +55,7 @@ export async function enhanceImage(input: ArrayBuffer, filename: string): Promis
   form.append("quality", process.env.OPENAI_IMAGE_QUALITY ?? "high");
   form.append("output_format", "jpeg");
   // gpt-image-1 accepts up to 16 images; we only ever send one.
-  form.append("image", new Blob([input], { type: guessMime(filename) }), filename);
+  form.append("image", new Blob([normalized], { type: "image/jpeg" }), safeName);
 
   const res = await fetch("https://api.openai.com/v1/images/edits", {
     method: "POST",
@@ -59,10 +80,3 @@ export async function enhanceImage(input: ArrayBuffer, filename: string): Promis
   return { b64, mime: "image/jpeg" };
 }
 
-function guessMime(filename: string): string {
-  const lower = filename.toLowerCase();
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".webp")) return "image/webp";
-  if (lower.endsWith(".heic") || lower.endsWith(".heif")) return "image/heic";
-  return "image/jpeg";
-}
