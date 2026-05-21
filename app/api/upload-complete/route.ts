@@ -65,8 +65,11 @@ export async function POST(req: Request) {
 
   // Schedule the delivery for this batch only.
   const now = new Date();
-  const delayHours = Number(process.env.DELIVERY_DELAY_HOURS ?? "48");
-  const scheduledAt = scheduleDelivery(now, Number.isFinite(delayHours) ? delayHours : 48);
+  // DELIVERY_DELAY_BUSINESS_DAYS: number of business days between the last
+  // photo upload and the customer's "ready" email (default 2 in prod, 0 in
+  // dev/test environments to skip the human-photographer simulation).
+  const businessDays = Number(process.env.DELIVERY_DELAY_BUSINESS_DAYS ?? "2");
+  const scheduledAt = scheduleDelivery(now, Number.isFinite(businessDays) ? businessDays : 2);
 
   const batchRes = (await admin
     .from("batches")
