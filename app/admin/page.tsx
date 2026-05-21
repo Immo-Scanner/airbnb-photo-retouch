@@ -15,7 +15,8 @@ type AdminOrder = Pick<
 export default async function AdminPage() {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user || !isAdminEmail(user.email)) redirect("/");
+  if (!user) redirect("/admin/login");
+  if (!isAdminEmail(user.email)) redirect("/");
 
   const admin = adminSupabase();
   const ordersRes = (await admin
