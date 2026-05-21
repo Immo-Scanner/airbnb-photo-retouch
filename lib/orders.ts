@@ -30,12 +30,29 @@ export async function createOrderIfMissing(opts: {
     .maybeSingle();
   if (existing.data) return { orderId: (existing.data as { id: string }).id, created: false };
 
+  // For repeat buyers: link this order to their *canonical* (oldest) Stripe
+  // customer for the same email — without trying to merge the new one Stripe
+  // just created. Each Checkout session necessarily produces a new customer
+  // (we don't know the email at click-time so we can't pre-attach), but at
+  // least our DB always points at the original record for reporting.
+  let canonicalCustomerId = opts.stripeCustomerId;
+  try {
+    const sClient = (await import("@/lib/stripe")).stripe();
+    const matches = await sClient.customers.list({ email: opts.email, limit: 100 });
+    if (matches.data.length > 0) {
+      const oldest = matches.data.reduce((a, b) => (a.created < b.created ? a : b));
+      canonicalCustomerId = oldest.id;
+    }
+  } catch (e) {
+    console.error("[orders] could not resolve canonical Stripe customer (using new one)", e);
+  }
+
   const inserted = await admin
     .from("orders")
     .insert({
       stripe_session_id: opts.sessionId,
       stripe_payment_intent: opts.paymentIntent,
-      stripe_customer_id: opts.stripeCustomerId,
+      stripe_customer_id: canonicalCustomerId,
       stripe_invoice_id: opts.stripeInvoiceId,
       tier: opts.tier,
       photos_quota: TIERS[opts.tier].quota,

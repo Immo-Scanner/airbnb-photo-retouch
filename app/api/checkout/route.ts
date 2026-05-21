@@ -3,9 +3,11 @@ import { stripe } from "@/lib/stripe";
 import { TIERS, tierFromString } from "@/lib/tiers";
 
 /**
- * Public checkout — no auth required. Stripe collects the email at checkout
- * time. The Stripe webhook + /api/post-checkout pair create the order and
- * issue a signed order token that authenticates further requests.
+ * Public checkout — no auth required. Stripe collects the email itself at
+ * the payment step. We DON'T pre-lookup an existing Customer here because
+ * we don't know the email at click-time; the Stripe webhook handles the
+ * link between repeat buyers and their existing Customer record after the
+ * fact.
  */
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -23,12 +25,19 @@ export async function GET(req: Request) {
     success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/?canceled=1`,
     metadata: { tier },
-    // Always create a Stripe Customer for every paid order so we can find
-    // them in the dashboard, attach future invoices, and audit history.
+
     customer_creation: "always",
-    // Auto-create a Stripe Invoice for the payment. The customer gets the
-    // PDF in their Stripe email; we keep the invoice id on the order for
-    // accounting.
+
+    // Business-friendly: optional VAT/SIRET + billing address. Both appear on
+    // the auto-generated invoice if filled.
+    tax_id_collection: { enabled: true },
+    billing_address_collection: "auto",
+
+    // Stripe Tax computes the right VAT for the buyer's location and writes
+    // it on the invoice. Requires Stripe Tax enabled + tax registrations
+    // configured in the Stripe dashboard.
+    automatic_tax: { enabled: true },
+
     invoice_creation: {
       enabled: true,
       invoice_data: {
@@ -39,7 +48,6 @@ export async function GET(req: Request) {
         footer: "Immoscan · contact@immoscan.fr",
       },
     },
-    // Stripe will collect the email if customer_email is unset (default UX).
   });
 
   return NextResponse.redirect(session.url!, { status: 303 });
