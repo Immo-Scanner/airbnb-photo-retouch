@@ -34,7 +34,7 @@ App sur http://localhost:3000
 2. Project Settings → API → copie `URL`, `anon` et `service_role` keys.
 3. Database → Extensions → active `pg_cron` ET `pg_net`.
 4. SQL Editor → applique les migrations dans l'ordre (`supabase/migrations/000X_*.sql`). En CI, la GitHub Action `supabase-migrations.yml` fait ça pour toi.
-5. Storage → crée 2 buckets **privés** : `originals` (gardés à vie pour le training IA) et `enhanced` (livrés via signed URL).
+5. Storage → crée 2 buckets **privés** : `originals` (gardés à vie pour le training IA) et `enhanced` (servis au client via `/api/batches/[id]/download`, pas de lien direct).
 
 ### 2. Stripe (~5 min, mode test)
 
