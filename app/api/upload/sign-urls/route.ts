@@ -13,6 +13,14 @@ const Body = z.object({
     .max(50),
 });
 
+/**
+ * Hand out signed upload URLs for the batch the customer is about to send.
+ *
+ * Allowed any time as long as the order has remaining credits — the order
+ * status is no longer the gate (a customer can come back days later and
+ * upload more photos from the same purchase, that's the whole point of
+ * the credit-pool model).
+ */
 export async function POST(req: Request) {
   const parsed = Body.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
@@ -22,15 +30,23 @@ export async function POST(req: Request) {
   if (!ok) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const admin = adminSupabase();
+
   const orderRes = (await admin
     .from("orders")
-    .select("photos_quota, status")
+    .select("photos_quota")
     .eq("id", orderId)
-    .single()) as { data: { photos_quota: number; status: string } | null };
+    .single()) as { data: { photos_quota: number } | null };
   const order = orderRes.data;
   if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (order.status !== "AWAITING_UPLOAD") return NextResponse.json({ error: "already processed" }, { status: 409 });
-  if (files.length > order.photos_quota) return NextResponse.json({ error: "quota exceeded" }, { status: 400 });
+
+  const usedRes = await admin
+    .from("photos")
+    .select("id", { count: "exact", head: true })
+    .eq("order_id", orderId);
+  const remaining = order.photos_quota - (usedRes.count ?? 0);
+  if (files.length > remaining) {
+    return NextResponse.json({ error: "quota exceeded", remaining }, { status: 400 });
+  }
 
   const urls: { path: string; signedUrl: string; filename: string }[] = [];
   for (let i = 0; i < files.length; i++) {
