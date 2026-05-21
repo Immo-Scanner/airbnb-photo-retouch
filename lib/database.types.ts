@@ -16,6 +16,8 @@ export interface OrderRow {
   customer_name: string | null;
   stripe_session_id: string | null;
   stripe_payment_intent: string | null;
+  stripe_customer_id: string | null;
+  stripe_invoice_id: string | null;
   tier: OrderTier;
   photos_quota: number;
   amount_cents: number;

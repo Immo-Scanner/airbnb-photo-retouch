@@ -36,6 +36,8 @@ export async function POST(req: Request) {
     tier,
     email,
     customerName: session.customer_details?.name ?? null,
+    stripeCustomerId: typeof session.customer === "string" ? session.customer : null,
+    stripeInvoiceId: typeof session.invoice === "string" ? session.invoice : null,
     sendCustomerEmail: false,
   });
 

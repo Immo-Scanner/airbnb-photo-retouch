@@ -17,6 +17,8 @@ export async function createOrderIfMissing(opts: {
   tier: Tier;
   email: string;
   customerName: string | null;
+  stripeCustomerId: string | null;
+  stripeInvoiceId: string | null;
   sendCustomerEmail: boolean;
 }): Promise<{ orderId: string; created: boolean }> {
   const admin = adminSupabase();
@@ -33,6 +35,8 @@ export async function createOrderIfMissing(opts: {
     .insert({
       stripe_session_id: opts.sessionId,
       stripe_payment_intent: opts.paymentIntent,
+      stripe_customer_id: opts.stripeCustomerId,
+      stripe_invoice_id: opts.stripeInvoiceId,
       tier: opts.tier,
       photos_quota: TIERS[opts.tier].quota,
       amount_cents: TIERS[opts.tier].amount,
