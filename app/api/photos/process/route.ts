@@ -35,6 +35,7 @@ export async function GET(req: Request) {
   type PhotoRow = {
     id: string;
     order_id: string;
+    batch_id: string | null;
     original_path: string;
     original_filename: string;
   };
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
   const next: PhotoRow | undefined = (
     (await admin
       .from("photos")
-      .select("id, order_id, original_path, original_filename")
+      .select("id, order_id, batch_id, original_path, original_filename")
       .eq("status", "UPLOADED")
       .order("created_at", { ascending: true })
       .limit(1)) as { data: PhotoRow[] | null }
@@ -119,7 +120,7 @@ export async function GET(req: Request) {
       .update({ status: "ENHANCED", enhanced_path: enhancedPath, error_message: null })
       .eq("id", next.id);
 
-    await maybeFlipOrderReady(admin, next.order_id);
+    if (next.batch_id) await maybeFlipBatchReady(admin, next.batch_id);
 
     const ms = Date.now() - t0;
     console.log(`[process-photos ${runId}] ✓ photo ${next.id} done in ${ms}ms`);
@@ -131,23 +132,24 @@ export async function GET(req: Request) {
       .from("photos")
       .update({ status: "FAILED", error_message: msg })
       .eq("id", next.id);
-    // Even a FAILED photo counts as "done" for the order-level done check —
-    // we don't want to wedge the order on a permanently failing image.
-    await maybeFlipOrderReady(admin, next.order_id);
+    // Even a FAILED photo counts as "done" for the batch-level check — we
+    // don't want to wedge the batch on a permanently failing image.
+    if (next.batch_id) await maybeFlipBatchReady(admin, next.batch_id);
     return NextResponse.json({ run: runId, processed: 0, photo_id: next.id, error: msg }, { status: 200 });
   }
 }
 
-async function maybeFlipOrderReady(admin: ReturnType<typeof adminSupabase>, orderId: string) {
-  const photosRes = (await admin.from("photos").select("status").eq("order_id", orderId)) as {
+async function maybeFlipBatchReady(admin: ReturnType<typeof adminSupabase>, batchId: string) {
+  const photosRes = (await admin.from("photos").select("status").eq("batch_id", batchId)) as {
     data: { status: string }[] | null;
   };
   const photos = photosRes.data ?? [];
-  const allDone = photos.length > 0 && photos.every((p) => p.status === "ENHANCED" || p.status === "FAILED");
+  const allDone =
+    photos.length > 0 && photos.every((p) => p.status === "ENHANCED" || p.status === "FAILED");
   if (!allDone) return;
   await admin
-    .from("orders")
+    .from("batches")
     .update({ status: "READY" })
-    .eq("id", orderId)
+    .eq("id", batchId)
     .eq("status", "PROCESSING");
 }

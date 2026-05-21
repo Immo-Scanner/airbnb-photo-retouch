@@ -8,6 +8,7 @@
 export type OrderTier = "S" | "M" | "L";
 export type OrderStatus = "AWAITING_UPLOAD" | "PROCESSING" | "READY" | "DELIVERED";
 export type PhotoStatus = "UPLOADED" | "PROCESSING" | "ENHANCED" | "FAILED";
+export type BatchStatus = "PROCESSING" | "READY" | "DELIVERED";
 
 export interface OrderRow {
   id: string;
@@ -39,9 +40,21 @@ export type OrderInsert = Omit<OrderRow, "id" | "created_at" | "updated_at" | "p
 
 export type OrderUpdate = Partial<OrderInsert>;
 
+export interface BatchRow {
+  id: string;
+  order_id: string;
+  status: BatchStatus;
+  upload_completed_at: string;
+  scheduled_delivery_at: string | null;
+  delivered_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PhotoRow {
   id: string;
   order_id: string;
+  batch_id: string | null;
   original_path: string;
   original_filename: string;
   original_size_bytes: number;

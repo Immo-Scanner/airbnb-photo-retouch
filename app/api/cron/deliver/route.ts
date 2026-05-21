@@ -7,15 +7,13 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 /**
- * Cron — called every 15 minutes by Supabase pg_cron + pg_net.
+ * Cron — picks up BATCHES (not orders) in READY state whose scheduled
+ * delivery time has elapsed, flips them to DELIVERED, and emails the
+ * customer a link to their order page (where they can grab the batch zip).
  *
- * Picks up orders where:
- *   - status = 'READY' (all photos enhanced)
- *   - scheduled_delivery_at <= now() (the fake-human delay has elapsed)
- * → flips them to DELIVERED and sends the "Geoffrey done" email.
- *
- * Every run logs a header + per-order trace so we can audit deliveries from
- * the Vercel log stream when something goes silently wrong.
+ * Since one order can spawn many batches over time, the order itself never
+ * flips to DELIVERED — it just stays PROCESSING until the credits run out
+ * (and even then the dashboard works normally for download).
  */
 export async function GET(req: Request) {
   const runId = Math.random().toString(36).slice(2, 8);
@@ -33,59 +31,65 @@ export async function GET(req: Request) {
 
   console.log(`[cron-deliver ${runId}] tick at ${nowIso}`);
 
-  // Snapshot of READY orders (for visibility into the upcoming pipeline).
-  const readySnap = await admin
-    .from("orders")
+  // Snapshot of READY batches for visibility.
+  const snap = (await admin
+    .from("batches")
     .select("id, scheduled_delivery_at")
-    .eq("status", "READY");
-  const readyAll = (readySnap.data ?? []) as { id: string; scheduled_delivery_at: string | null }[];
+    .eq("status", "READY")) as { data: { id: string; scheduled_delivery_at: string | null }[] | null };
+  const readyAll = snap.data ?? [];
   const readyDue = readyAll.filter(
-    (o) => o.scheduled_delivery_at && o.scheduled_delivery_at <= nowIso
+    (b) => b.scheduled_delivery_at && b.scheduled_delivery_at <= nowIso
   );
   console.log(
-    `[cron-deliver ${runId}] READY orders: ${readyAll.length} total, ${readyDue.length} due`
+    `[cron-deliver ${runId}] READY batches: ${readyAll.length} total, ${readyDue.length} due`
   );
 
-  const { data: due, error } = await admin
-    .from("orders")
-    .select("id, email")
+  const dueRes = (await admin
+    .from("batches")
+    .select("id, order_id")
     .eq("status", "READY")
     .lte("scheduled_delivery_at", nowIso)
-    .limit(50);
-  if (error) {
-    console.error(`[cron-deliver ${runId}] query failed`, error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    .limit(50)) as { data: { id: string; order_id: string }[] | null; error: { message: string } | null };
+  if (dueRes.error) {
+    console.error(`[cron-deliver ${runId}] query failed`, dueRes.error);
+    return NextResponse.json({ error: dueRes.error.message }, { status: 500 });
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const delivered: string[] = [];
   const skipped: { id: string; reason: string }[] = [];
 
-  for (const order of due ?? []) {
-    const orderId = order.id as string;
-    const email = order.email as string | null;
+  for (const batch of dueRes.data ?? []) {
+    const batchId = batch.id;
+    const orderId = batch.order_id;
 
-    const { data: updRow, error: updErr } = await admin
-      .from("orders")
+    // Conditional flip — only one tick can take ownership.
+    const flipRes = (await admin
+      .from("batches")
       .update({ status: "DELIVERED", delivered_at: new Date().toISOString() })
-      .eq("id", orderId)
+      .eq("id", batchId)
       .eq("status", "READY")
       .select("id")
-      .maybeSingle();
-    if (updErr) {
-      console.error(`[cron-deliver ${runId}] flip failed`, orderId, updErr);
-      skipped.push({ id: orderId, reason: `flip:${updErr.message}` });
+      .maybeSingle()) as { data: { id: string } | null; error: { message: string } | null };
+    if (flipRes.error) {
+      skipped.push({ id: batchId, reason: `flip:${flipRes.error.message}` });
       continue;
     }
-    if (!updRow) {
-      console.warn(`[cron-deliver ${runId}] race — order ${orderId} not in READY anymore`);
-      skipped.push({ id: orderId, reason: "race-already-flipped" });
+    if (!flipRes.data) {
+      skipped.push({ id: batchId, reason: "race-already-flipped" });
       continue;
     }
 
+    // Fetch the email for this batch's order.
+    const orderRes = (await admin
+      .from("orders")
+      .select("email")
+      .eq("id", orderId)
+      .single()) as { data: { email: string | null } | null };
+    const email = orderRes.data?.email;
     if (!email) {
-      console.warn(`[cron-deliver ${runId}] delivered without email`, orderId);
-      delivered.push(orderId);
+      console.warn(`[cron-deliver ${runId}] batch ${batchId} delivered without email`);
+      delivered.push(batchId);
       continue;
     }
 
@@ -97,13 +101,13 @@ export async function GET(req: Request) {
         subject: "Vos photos retouchées sont prêtes — Geoffrey",
         html: deliveryEmailHtml(link),
       });
-      console.log(`[cron-deliver ${runId}] ✓ delivered ${orderId} to ${maskEmail(email)}`);
+      console.log(
+        `[cron-deliver ${runId}] ✓ delivered batch ${batchId} to ${maskEmail(email)} (order ${orderId.slice(0, 8)})`
+      );
     } catch (e) {
-      console.error(`[cron-deliver ${runId}] email send failed for ${orderId}`, e);
-      // We don't roll back the DELIVERED flip — the customer can still find
-      // their order via the original link they got on confirmation.
+      console.error(`[cron-deliver ${runId}] email send failed for batch ${batchId}`, e);
     }
-    delivered.push(orderId);
+    delivered.push(batchId);
   }
 
   const ms = Date.now() - t0;

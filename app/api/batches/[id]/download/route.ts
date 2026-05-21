@@ -6,25 +6,34 @@ import { authorizedOrderId } from "@/lib/order-token";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+/**
+ * Zip the enhanced photos of a single batch. The batch must belong to an
+ * order the caller owns (cookie-authenticated) AND must have been delivered
+ * — we don't reveal the photos before the customer is supposed to see them.
+ */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const { id: orderId } = await ctx.params;
-  const ok = await authorizedOrderId({ expectedOrderId: orderId, queryToken: null });
+  const { id: batchId } = await ctx.params;
+  const admin = adminSupabase();
+
+  const batchRes = (await admin
+    .from("batches")
+    .select("id, order_id, status")
+    .eq("id", batchId)
+    .single()) as { data: { id: string; order_id: string; status: string } | null };
+  const batch = batchRes.data;
+  if (!batch) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  const ok = await authorizedOrderId({ expectedOrderId: batch.order_id, queryToken: null });
   if (!ok) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const admin = adminSupabase();
-  const orderRes = (await admin
-    .from("orders")
-    .select("id, status")
-    .eq("id", orderId)
-    .single()) as { data: { id: string; status: string } | null };
-  const order = orderRes.data;
-  if (!order) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (order.status !== "DELIVERED") return NextResponse.json({ error: "not delivered yet" }, { status: 409 });
+  if (batch.status !== "DELIVERED") {
+    return NextResponse.json({ error: "batch not delivered yet" }, { status: 409 });
+  }
 
   const photosRes = (await admin
     .from("photos")
     .select("original_filename, enhanced_path")
-    .eq("order_id", orderId)
+    .eq("batch_id", batchId)
     .eq("status", "ENHANCED")) as {
     data: { original_filename: string; enhanced_path: string | null }[] | null;
   };
@@ -46,7 +55,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     status: 200,
     headers: {
       "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="photos_geoffrey_${orderId.slice(0, 8)}.zip"`,
+      "Content-Disposition": `attachment; filename="photos_geoffrey_${batchId.slice(0, 8)}.zip"`,
     },
   });
 }
