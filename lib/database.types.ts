@@ -40,6 +40,15 @@ export type OrderInsert = Omit<OrderRow, "id" | "created_at" | "updated_at" | "p
 
 export type OrderUpdate = Partial<OrderInsert>;
 
+export interface RedoTokenRow {
+  id: string;
+  order_id: string;
+  token: string;
+  used_at: string | null;
+  used_batch_id: string | null;
+  created_at: string;
+}
+
 export interface BatchRow {
   id: string;
   order_id: string;

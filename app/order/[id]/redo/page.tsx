@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { adminSupabase } from "@/lib/supabase/admin";
-import { authorizedOrderId } from "@/lib/order-token";
 import type { OrderRow } from "@/lib/database.types";
 import { RedoClient, type RedoCandidate } from "./redo-client";
 
@@ -9,14 +8,29 @@ export const dynamic = "force-dynamic";
 
 export default async function RedoPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ r?: string }>;
 }) {
   const { id } = await params;
-  const ok = await authorizedOrderId({ expectedOrderId: id, queryToken: null });
-  if (!ok) notFound();
+  const { r } = await searchParams;
+  if (!r) notFound();
 
   const admin = adminSupabase();
+
+  // The redo URL is gated by a single-use voucher minted from /admin.
+  const tokenRes = (await admin
+    .from("redo_tokens")
+    .select("id, order_id, used_at")
+    .eq("token", r)
+    .maybeSingle()) as {
+    data: { id: string; order_id: string; used_at: string | null } | null;
+  };
+  const tok = tokenRes.data;
+  if (!tok || tok.order_id !== id) notFound();
+  if (tok.used_at) return <AlreadyUsedView orderId={id} />;
+
   const orderRes = (await admin
     .from("orders")
     .select("id, tier, email")
@@ -25,7 +39,6 @@ export default async function RedoPage({
   const order = orderRes.data;
   if (!order) notFound();
 
-  // Pull every ENHANCED photo whose batch was DELIVERED. Newest delivered first.
   const photosRes = (await admin
     .from("photos")
     .select("id, original_filename, original_path, batch_id, batches!inner(status, delivered_at)")
@@ -44,9 +57,6 @@ export default async function RedoPage({
   };
   const deliveredPhotos = (photosRes.data ?? []).filter((p) => p.batches.status === "DELIVERED");
 
-  // Server-side sign a short-lived URL pointing at the ORIGINAL image. The
-  // customer picks what to redo based on the source photo (the one they
-  // sent), not the AI's first attempt — that's the reference to comment on.
   const candidates: RedoCandidate[] = [];
   for (const p of deliveredPhotos) {
     if (!p.original_path) continue;
@@ -61,10 +71,7 @@ export default async function RedoPage({
   return (
     <div className="min-h-screen bg-surface-alt">
       <div className="max-w-3xl mx-auto px-6 py-12 md:py-16">
-        <Link href={`/order/${id}`} className="text-sm text-ink-muted hover:underline">
-          ← Retour à ma commande
-        </Link>
-        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight mt-3 mb-3">
+        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">
           Demander une retouche supplémentaire
         </h1>
         <p className="text-ink-soft text-base leading-relaxed mb-2">
@@ -73,18 +80,48 @@ export default async function RedoPage({
           <em> « pièce plus lumineuse »</em>, etc.
         </p>
         <p className="text-ink-muted text-sm mb-10">
-          La retouche supplémentaire est offerte — elle ne décompte pas de vos crédits.
+          Cette retouche supplémentaire est offerte — elle ne décompte pas de vos crédits.
+          Ce lien est valable une seule fois.
         </p>
 
         {candidates.length === 0 ? (
           <div className="rounded-2xl bg-white border border-black/5 p-8 text-center">
             <p className="text-ink-soft">
-              Aucune photo livrée pour le moment. Revenez ici une fois votre premier lot reçu.
+              Aucune photo livrée pour le moment.
             </p>
           </div>
         ) : (
-          <RedoClient orderId={id} candidates={candidates} />
+          <RedoClient orderId={id} redoToken={r} candidates={candidates} />
         )}
+      </div>
+    </div>
+  );
+}
+
+function AlreadyUsedView({ orderId }: { orderId: string }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-6 bg-surface-alt">
+      <div className="text-center max-w-md">
+        <div className="mx-auto w-20 h-20 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-4xl mb-6">
+          ⏷
+        </div>
+        <h1 className="text-2xl font-extrabold tracking-tight mb-3">Lien déjà utilisé</h1>
+        <p className="text-ink-soft mb-2">
+          Vous avez déjà soumis votre demande de retouche supplémentaire avec ce lien.
+        </p>
+        <p className="text-ink-muted text-sm mb-8">
+          Si vous avez besoin d'une autre retouche, écrivez-nous à{" "}
+          <a href="mailto:contact@immo-scan.fr" className="text-brand font-semibold hover:underline">
+            contact@immo-scan.fr
+          </a>{" "}
+          — on vous générera un nouveau lien.
+        </p>
+        <Link
+          href={`/order/${orderId}`}
+          className="inline-block bg-brand hover:bg-brand-dark text-white px-6 py-3 rounded-full font-bold tracking-tight transition"
+        >
+          Voir ma commande
+        </Link>
       </div>
     </div>
   );

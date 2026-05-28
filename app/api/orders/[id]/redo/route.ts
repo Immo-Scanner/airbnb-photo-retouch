@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { adminSupabase } from "@/lib/supabase/admin";
-import { authorizedOrderId } from "@/lib/order-token";
 import { scheduleDelivery } from "@/lib/business-hours";
 
 export const runtime = "nodejs";
 
 const Body = z.object({
+  redoToken: z.string().min(8).max(128),
   selections: z
     .array(
       z.object({
@@ -21,26 +21,42 @@ const Body = z.object({
 /**
  * Create a fresh batch that re-processes existing photos with optional
  * per-photo custom prompts. The redo is FREE — it doesn't consume credits.
- * Source photos must belong to a DELIVERED batch on the same order (the
- * customer can only ask for redos on photos they've already received).
+ *
+ * Authorization here is NOT the order cookie: it's the single-use voucher
+ * (`redoToken`) the admin minted from /admin and shared with the customer.
+ * The voucher is atomically marked used at the end of a successful submit,
+ * so the same URL cannot be re-used to keep spawning free batches.
  */
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id: orderId } = await ctx.params;
 
-  const ok = await authorizedOrderId({ expectedOrderId: orderId, queryToken: null });
-  if (!ok) return NextResponse.json({ error: "forbidden" }, { status: 403 });
-
   const parsed = Body.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  const { selections } = parsed.data;
+  const { redoToken, selections } = parsed.data;
 
   const admin = adminSupabase();
-  const sourceIds = selections.map((s) => s.source_photo_id);
 
-  // Validate ownership AND that each source is part of a delivered batch.
+  // Validate the voucher: must exist, match the order in the URL, and be unused.
+  const tokenRes = (await admin
+    .from("redo_tokens")
+    .select("id, order_id, used_at")
+    .eq("token", redoToken)
+    .maybeSingle()) as {
+    data: { id: string; order_id: string; used_at: string | null } | null;
+  };
+  const tok = tokenRes.data;
+  if (!tok || tok.order_id !== orderId) {
+    return NextResponse.json({ error: "invalid redo token" }, { status: 403 });
+  }
+  if (tok.used_at) {
+    return NextResponse.json({ error: "redo token already used" }, { status: 409 });
+  }
+
+  // Validate selected photos belong to a delivered batch on this order.
+  const sourceIds = selections.map((s) => s.source_photo_id);
   const sourcesRes = (await admin
     .from("photos")
-    .select("id, order_id, original_path, original_filename, original_size_bytes, batch_id, batches!inner(status)")
+    .select("id, order_id, original_path, original_filename, original_size_bytes, batches!inner(status)")
     .in("id", sourceIds)) as {
     data:
       | {
@@ -49,7 +65,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
           original_path: string;
           original_filename: string;
           original_size_bytes: number;
-          batch_id: string | null;
           batches: { status: string };
         }[]
       | null;
@@ -70,7 +85,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     }
   }
 
-  // Schedule the redo batch like any other delivery.
   const now = new Date();
   const businessDays = Number(process.env.DELIVERY_DELAY_BUSINESS_DAYS ?? "2");
   const scheduledAt = scheduleDelivery(now, Number.isFinite(businessDays) ? businessDays : 2);
@@ -93,8 +107,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   }
   const batchId = batchRes.data.id;
 
-  // Build photo rows pointing at the same physical original_path so we don't
-  // re-upload anything. The worker will pick them up by status=UPLOADED.
   const sourceById = new Map(sources.map((s) => [s.id, s]));
   const photoRows = selections.map((sel) => {
     const src = sourceById.get(sel.source_photo_id)!;
@@ -119,6 +131,20 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       { error: insertedRes.error?.message ?? "photo insert failed" },
       { status: 500 }
     );
+  }
+
+  // Atomically claim the voucher. If someone parallelised the request and
+  // claimed it first, undo our batch and refuse.
+  const claimRes = (await admin
+    .from("redo_tokens")
+    .update({ used_at: new Date().toISOString(), used_batch_id: batchId })
+    .eq("id", tok.id)
+    .is("used_at", null)
+    .select("id")
+    .maybeSingle()) as { data: { id: string } | null };
+  if (!claimRes.data) {
+    await admin.from("batches").delete().eq("id", batchId);
+    return NextResponse.json({ error: "redo token already used" }, { status: 409 });
   }
 
   return NextResponse.json({

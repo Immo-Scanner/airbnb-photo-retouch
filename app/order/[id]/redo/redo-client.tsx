@@ -14,7 +14,15 @@ interface Selection {
   comment: string;
 }
 
-export function RedoClient({ orderId, candidates }: { orderId: string; candidates: RedoCandidate[] }) {
+export function RedoClient({
+  orderId,
+  redoToken,
+  candidates,
+}: {
+  orderId: string;
+  redoToken: string;
+  candidates: RedoCandidate[];
+}) {
   const router = useRouter();
   const [state, setState] = useState<Record<string, Selection>>(() =>
     Object.fromEntries(candidates.map((c) => [c.id, { checked: false, comment: "" }]))
@@ -45,13 +53,13 @@ export function RedoClient({ orderId, candidates }: { orderId: string; candidate
       const res = await fetch(`/api/orders/${orderId}/redo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selections }),
+        body: JSON.stringify({ selections, redoToken }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? `submit failed (${res.status})`);
       }
-      router.push(`/order/${orderId}`);
+      router.push(`/order/${orderId}/redo/sent`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
       setSubmitting(false);
