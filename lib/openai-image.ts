@@ -15,7 +15,11 @@
 
 const ENHANCE_PROMPT =
   process.env.OPENAI_IMAGE_PROMPT ??
-  "À la manière d'un photographe immobilier professionnel, modifie légèrement cette photo en lui restant fidèle afin de la rendre plus attractive dans le cadre d'une annonce pour de la location courte durée premium";
+`À la manière d’un photographe immobilier haut de gamme, améliore très subtilement cette photo tout en conservant strictement la réalité du lieu. Ne modifie ni l’architecture, ni la disposition, ni les volumes, ni les meubles, ni les ouvertures : aucune porte, fenêtre, cloison ou objet ne doit être ajouté, supprimé ou déplacé. L’objectif est uniquement de reproduire un rendu professionnel naturel et crédible, comme après une vraie séance photo immobilière premium.
+
+Ajuste légèrement la luminosité, l’exposition, les contrastes, la balance des blancs et la netteté afin de rendre l’espace plus lumineux, chaleureux et accueillant, sans effet artificiel. Corrige discrètement les petites imperfections visuelles (reflets gênants, légère distorsion, micro-désordre mineur, bruit numérique, draps froissés) tout en gardant une apparence authentique et fidèle au bien réel.
+
+Le résultat doit rester photoréaliste, sobre et totalement plausible pour une annonce de location courte durée premium. Il ne doit à aucun moment être évident qu’une IA est intervenue.`;
 
 import sharp from "sharp";
 
