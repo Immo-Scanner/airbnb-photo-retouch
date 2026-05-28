@@ -28,7 +28,7 @@ export default async function RedoPage({
   // Pull every ENHANCED photo whose batch was DELIVERED. Newest delivered first.
   const photosRes = (await admin
     .from("photos")
-    .select("id, original_filename, enhanced_path, batch_id, batches!inner(status, delivered_at)")
+    .select("id, original_filename, original_path, batch_id, batches!inner(status, delivered_at)")
     .eq("order_id", id)
     .eq("status", "ENHANCED")
     .order("created_at", { ascending: true })) as {
@@ -36,7 +36,7 @@ export default async function RedoPage({
       | {
           id: string;
           original_filename: string;
-          enhanced_path: string | null;
+          original_path: string;
           batch_id: string;
           batches: { status: string; delivered_at: string | null };
         }[]
@@ -44,12 +44,13 @@ export default async function RedoPage({
   };
   const deliveredPhotos = (photosRes.data ?? []).filter((p) => p.batches.status === "DELIVERED");
 
-  // Server-side sign a short-lived URL for each enhanced thumbnail so the
-  // client can show real previews from the private bucket.
+  // Server-side sign a short-lived URL pointing at the ORIGINAL image. The
+  // customer picks what to redo based on the source photo (the one they
+  // sent), not the AI's first attempt — that's the reference to comment on.
   const candidates: RedoCandidate[] = [];
   for (const p of deliveredPhotos) {
-    if (!p.enhanced_path) continue;
-    const { data } = await admin.storage.from("enhanced").createSignedUrl(p.enhanced_path, 3600);
+    if (!p.original_path) continue;
+    const { data } = await admin.storage.from("originals").createSignedUrl(p.original_path, 3600);
     candidates.push({
       id: p.id,
       filename: p.original_filename,
