@@ -24,7 +24,11 @@ interface EditResult {
   mime: string;
 }
 
-export async function enhanceImage(input: ArrayBuffer, filename: string): Promise<EditResult> {
+export async function enhanceImage(
+  input: ArrayBuffer,
+  filename: string,
+  customPrompt?: string | null
+): Promise<EditResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not set");
 
@@ -47,9 +51,17 @@ export async function enhanceImage(input: ArrayBuffer, filename: string): Promis
 
   const safeName = filename.replace(/\.[^.]+$/, "") + ".jpg";
 
+  // Per-photo override: when the customer asks for a redo with specific
+  // instructions ("tond la pelouse", "enlève la voiture"…), append it to
+  // the base prompt rather than replacing it — we still want the warm STR
+  // photographer style underneath.
+  const finalPrompt = customPrompt?.trim()
+    ? `${ENHANCE_PROMPT}\n\nInstructions spécifiques pour cette photo : ${customPrompt.trim()}`
+    : ENHANCE_PROMPT;
+
   const form = new FormData();
   form.append("model", "gpt-image-1");
-  form.append("prompt", ENHANCE_PROMPT);
+  form.append("prompt", finalPrompt);
   form.append("n", "1");
   form.append("size", process.env.OPENAI_IMAGE_SIZE ?? "auto");
   form.append("quality", process.env.OPENAI_IMAGE_QUALITY ?? "high");

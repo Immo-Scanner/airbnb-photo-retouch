@@ -38,6 +38,7 @@ export async function GET(req: Request) {
     batch_id: string | null;
     original_path: string;
     original_filename: string;
+    custom_prompt: string | null;
   };
 
   // Recover any photo stuck in PROCESSING > 3 min (Vercel killed the previous
@@ -62,7 +63,7 @@ export async function GET(req: Request) {
   const next: PhotoRow | undefined = (
     (await admin
       .from("photos")
-      .select("id, order_id, batch_id, original_path, original_filename")
+      .select("id, order_id, batch_id, original_path, original_filename, custom_prompt")
       .eq("status", "UPLOADED")
       .order("created_at", { ascending: true })
       .limit(1)) as { data: PhotoRow[] | null }
@@ -99,7 +100,7 @@ export async function GET(req: Request) {
     if (!orig.ok) throw new Error(`download original failed: ${orig.status}`);
     const bin = await orig.arrayBuffer();
 
-    const { b64 } = await enhanceImage(bin, next.original_filename);
+    const { b64 } = await enhanceImage(bin, next.original_filename, next.custom_prompt);
     const enhancedBytes = Buffer.from(b64, "base64");
 
     const enhancedPath = `${next.order_id}/enhanced_${next.id}_${next.original_filename.replace(

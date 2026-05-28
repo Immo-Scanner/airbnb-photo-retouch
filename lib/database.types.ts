@@ -58,6 +58,8 @@ export interface PhotoRow {
   original_path: string;
   original_filename: string;
   original_size_bytes: number;
+  custom_prompt: string | null;
+  source_photo_id: string | null;
   enhanced_path: string | null;
   status: PhotoStatus;
   error_message: string | null;
