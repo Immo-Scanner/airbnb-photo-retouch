@@ -28,6 +28,10 @@ export async function GET(req: Request) {
 
     customer_creation: "always",
 
+    // Show the "Add promotion code" link on the Stripe page. Codes themselves
+    // are managed in the Stripe dashboard (Products → Coupons / Promotion codes).
+    allow_promotion_codes: true,
+
     // Business-friendly: optional VAT/SIRET + billing address. Both appear on
     // the auto-generated invoice if filled.
     tax_id_collection: { enabled: true },
