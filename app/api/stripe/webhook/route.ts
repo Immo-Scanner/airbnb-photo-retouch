@@ -3,6 +3,7 @@ import { stripe } from "@/lib/stripe";
 import { TIERS, type Tier } from "@/lib/tiers";
 import { createOrderIfMissing } from "@/lib/orders";
 import { tagBuyer } from "@/lib/active-campaign";
+import { notifyImmoscanPurchase } from "@/lib/immoscan";
 
 export const runtime = "nodejs";
 
@@ -54,6 +55,10 @@ export async function POST(req: Request) {
   if (result.created) {
     await tagBuyer({ email, fullName: session.customer_details?.name ?? null });
   }
+
+  // Always forwarded (not only on creation): /api/checkout/complete may have
+  // created the order first. ImmoScan dedupes on the Stripe session id.
+  await notifyImmoscanPurchase(session);
 
   return NextResponse.json({ received: true });
 }
