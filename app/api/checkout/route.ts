@@ -17,14 +17,19 @@ export async function GET(req: Request) {
   const priceId = process.env[TIERS[tier].priceEnv];
   if (!priceId) return NextResponse.json({ error: `${TIERS[tier].priceEnv} not set` }, { status: 500 });
 
+  // Visitor id from the ImmoScan sales page: links the purchase to the visit
+  // (conversion rate + Meta CAPI on the ImmoScan side).
+  const visitorId = (url.searchParams.get("vid") ?? "").replace(/[^A-Za-z0-9.-]/g, "").slice(0, 100);
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? url.origin;
+  const cancelUrl = process.env.SALES_PAGE_URL || `${appUrl}/?canceled=1`;
   const session = await stripe().checkout.sessions.create({
     mode: "payment",
     payment_method_types: ["card"],
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${appUrl}/?canceled=1`,
-    metadata: { tier },
+    cancel_url: cancelUrl,
+    metadata: { tier, ...(visitorId ? { visitor_id: visitorId } : {}) },
 
     customer_creation: "always",
 
