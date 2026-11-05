@@ -1,7 +1,8 @@
 /**
  * OpenAI image edit wrapper.
  *
- * Uses the gpt-image-1 model on POST /v1/images/edits with the
+ * Uses the gpt-image-1.5 model (override with OPENAI_IMAGE_MODEL) on
+ * POST /v1/images/edits with the
  * STR-photographer prompt. Returns the edited image as a Buffer.
  *
  * Pricing: ~$0.04 per high-quality image as of the API knowledge cutoff
@@ -64,13 +65,13 @@ export async function enhanceImage(
     : ENHANCE_PROMPT;
 
   const form = new FormData();
-  form.append("model", "gpt-image-1");
+  form.append("model", process.env.OPENAI_IMAGE_MODEL || "gpt-image-1.5");
   form.append("prompt", finalPrompt);
   form.append("n", "1");
   form.append("size", process.env.OPENAI_IMAGE_SIZE ?? "auto");
   form.append("quality", process.env.OPENAI_IMAGE_QUALITY ?? "high");
   form.append("output_format", "jpeg");
-  // gpt-image-1 accepts up to 16 images; we only ever send one.
+  // GPT Image models accept up to 16 images; we only ever send one.
   // Copy into a fresh Uint8Array so the Blob constructor sees an
   // ArrayBuffer-backed view (Buffer's ArrayBufferLike trips strict DOM types).
   const bytes = new Uint8Array(normalized.byteLength);
