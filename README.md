@@ -2,9 +2,9 @@
 
 > Hidden SaaS — "Geoffrey, photographe pro retouche tes photos Airbnb en 48h".
 > Côté client : portail simple, livraison humaine.
-> Côté nous : OpenAI `gpt-image-1` fait la retouche, on garde les originaux pour entraîner notre IA.
+> Côté nous : OpenAI `gpt-image-1.5` fait la retouche, on garde les originaux pour entraîner notre IA.
 
-**Stack** : Next.js 15 (App Router) · Supabase (Auth/Storage/Postgres/pg_cron) · Stripe Checkout · OpenAI `gpt-image-1` · Vercel
+**Stack** : Next.js 15 (App Router) · Supabase (Auth/Storage/Postgres/pg_cron) · Stripe Checkout · OpenAI `gpt-image-1.5` · Vercel
 
 ---
 
