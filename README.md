@@ -77,6 +77,8 @@ select public.setup_deliver_cron(
 );
 ```
 
+Les deux crons n'appellent Vercel que s'il y a du travail (photo en attente, lot prêt à livrer), et l'historique `cron.job_run_details` est purgé chaque nuit (7 jours gardés) — migration `0012`, pour rester sous le budget Disk IO Supabase.
+
 ---
 
 ## Architecture en 1 schéma
